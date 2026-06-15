@@ -46,8 +46,17 @@ agentscope:
     model-name: qwen3:14b
   # 会话状态存储：MysqlAgentStateStore（自动建表，无需额外配置）
 
+# OpenTelemetry 配置
+otel:
+  service:
+    name: wu-agent-scope
+  exporter:
+    enabled: true
+    endpoint: http://localhost:4317
+
 # 日志级别
 logging:
   level:
     io.agentscope: DEBUG
     io.agentscope.core.model.transport.JdkHttpTransport: INFO
+    com.chiho.wuagentscope: INFO

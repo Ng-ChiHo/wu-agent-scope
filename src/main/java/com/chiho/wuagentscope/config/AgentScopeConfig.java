@@ -7,12 +7,15 @@ import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
+import io.agentscope.core.tracing.OtelTracingMiddleware;
 import io.agentscope.extensions.mysql.state.MysqlAgentStateStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 
 import javax.sql.DataSource;
+import java.util.List;
 
 /**
  * AgentScope 核心配置
@@ -42,6 +45,7 @@ import javax.sql.DataSource;
  * @author ChiHo
  */
 @Configuration
+@DependsOn("openTelemetry")
 public class AgentScopeConfig {
 
     // MySQL 状态存储database
@@ -125,7 +129,8 @@ public class AgentScopeConfig {
      * - "anthropic:claude-sonnet-4-5" —— Anthropic
      */
     @Bean
-    public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore, Toolkit toolkit) {
+    public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore,
+                                  Toolkit toolkit) {
         return ReActAgent.builder()
                 .name("common-chat")
                 .sysPrompt("你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。\n" +
@@ -134,6 +139,7 @@ public class AgentScopeConfig {
                 .model(model)
                 .stateStore(stateStore)
                 .toolkit(toolkit)
+                .middlewares(List.of(new OtelTracingMiddleware()))  // 注册 OTel 追踪中间件
                 .maxIters(20)  // ReAct 循环最大迭代次数
                 .build();
     }

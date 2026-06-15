@@ -36,6 +36,9 @@ public class ChatService {
     @Resource
     private ReActAgent reActAgent;
 
+    @Resource
+    private ObservabilityEventSink observabilityEventSink;
+
     /**
      * 流式聊天（SSE）
      * <p>
@@ -57,7 +60,14 @@ public class ChatService {
     public Flux<String> chatStream(Long userId, String sessionId, String message) {
         RuntimeContext ctx = buildContext(userId, sessionId);
 
-        return reActAgent.streamEvents(List.of(new UserMessage(message)), ctx)
+        // streamEvents() 获取完整事件流
+        Flux<AgentEvent> rawEvents = reActAgent.streamEvents(List.of(new UserMessage(message)), ctx);
+
+        // 包装：注入可观测性 sink（doOnNext 副作用，不阻塞流）
+        Flux<AgentEvent> observedEvents = observabilityEventSink.wrapStream(rawEvents, String.valueOf(userId), sessionId);
+
+        // 过滤：只推文本增量给前端
+        return observedEvents
                 .filter(event -> event.getType() == AgentEventType.TEXT_BLOCK_DELTA)
                 .map(event -> ((TextBlockDeltaEvent) event).getDelta())
                 .doOnError(e -> log.error("流式聊天异常: userId={}, sessionId={}", userId, sessionId, e));
@@ -76,7 +86,10 @@ public class ChatService {
     public Flux<AgentEvent> chatStreamWithEvents(Long userId, String sessionId, String message) {
         RuntimeContext ctx = buildContext(userId, sessionId);
 
-        return reActAgent.streamEvents(List.of(new UserMessage(message)), ctx)
+        Flux<AgentEvent> rawEvents = reActAgent.streamEvents(List.of(new UserMessage(message)), ctx);
+
+        // 包装：注入可观测性 sink
+        return observabilityEventSink.wrapStream(rawEvents, String.valueOf(userId), sessionId)
                 .doOnError(e -> log.error("流式聊天异常: userId={}, sessionId={}", userId, sessionId, e));
     }
 
