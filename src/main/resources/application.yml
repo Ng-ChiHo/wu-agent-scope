@@ -50,3 +50,4 @@ agentscope:
 logging:
   level:
     io.agentscope: DEBUG
+    io.agentscope.core.model.transport.JdkHttpTransport: INFO

@@ -1,9 +1,12 @@
 package com.chiho.wuagentscope.config;
 
+import com.chiho.wuagentscope.tools.ImageSearchTool;
+import com.chiho.wuagentscope.tools.TimeTool;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
 import io.agentscope.core.state.AgentStateStore;
+import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.mysql.state.MysqlAgentStateStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -88,6 +91,26 @@ public class AgentScopeConfig {
     }
 
     /**
+     * 统一配置 Toolkit
+     * <p>
+     * Toolkit 负责将工具注册到 AgentScope，AgentScope 会自动将工具名称注册到模型。
+     * 模型通过工具名称调用工具，返回 JSON 格式结果给 AgentScope，AgentScope 解析结果并调用对应工具。
+     * <p>
+     * 例如，注册了 TimeTool 后，模型可以通过 "getCurrentDateTime()" 调用，返回当前时间。
+     * <p>
+     * 注册工具时，工具名称不能与模型的内置函数名称重复，否则会覆盖内置函数。
+     * @param timeTool
+     * @return
+     */
+    @Bean
+    public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool) {
+        Toolkit toolkit = new Toolkit();
+        toolkit.registerTool(timeTool);
+        toolkit.registerTool(imageSearchTool);
+        return toolkit;
+    }
+
+    /**
      * 配置 ReActAgent（裸推理-行动循环引擎）
      * <p>
      * 核心能力：
@@ -102,7 +125,7 @@ public class AgentScopeConfig {
      * - "anthropic:claude-sonnet-4-5" —— Anthropic
      */
     @Bean
-    public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore) {
+    public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore, Toolkit toolkit) {
         return ReActAgent.builder()
                 .name("common-chat")
                 .sysPrompt("你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。\n" +
@@ -110,6 +133,7 @@ public class AgentScopeConfig {
                         "客观中立不误导，复杂内容分点说明，排版清爽适合手机阅读，坚守合规底线，全场景耐心解答用户所有问题。")
                 .model(model)
                 .stateStore(stateStore)
+                .toolkit(toolkit)
                 .maxIters(20)  // ReAct 循环最大迭代次数
                 .build();
     }

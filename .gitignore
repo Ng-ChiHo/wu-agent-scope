@@ -8,6 +8,7 @@ target/
 application-local.yml
 tmp/
 .agentscope
+CLAUDE.md
 
 ### STS ###
 .apt_generated
