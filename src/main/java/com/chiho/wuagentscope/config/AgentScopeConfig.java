@@ -1,5 +1,6 @@
 package com.chiho.wuagentscope.config;
 
+import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
 import com.chiho.wuagentscope.tools.ImageSearchTool;
 import com.chiho.wuagentscope.tools.TimeTool;
 import io.agentscope.core.ReActAgent;
@@ -15,7 +16,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
 import javax.sql.DataSource;
-import java.util.List;
 
 /**
  * AgentScope 核心配置
@@ -130,7 +130,9 @@ public class AgentScopeConfig {
      */
     @Bean
     public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore,
-                                  Toolkit toolkit) {
+                                  Toolkit toolkit,
+                                  ContextTrimMiddleware contextTrimMiddleware,
+                                  OtelTracingMiddleware otelTracingMiddleware) {
         return ReActAgent.builder()
                 .name("common-chat")
                 .sysPrompt("你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。\n" +
@@ -139,7 +141,8 @@ public class AgentScopeConfig {
                 .model(model)
                 .stateStore(stateStore)
                 .toolkit(toolkit)
-                .middlewares(List.of(new OtelTracingMiddleware()))  // 注册 OTel 追踪中间件
+                .middleware(contextTrimMiddleware)   // 先截断上下文
+                .middleware(otelTracingMiddleware)    // 再记录追踪
                 .maxIters(20)  // ReAct 循环最大迭代次数
                 .build();
     }

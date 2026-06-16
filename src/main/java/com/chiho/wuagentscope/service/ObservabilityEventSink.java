@@ -8,6 +8,7 @@ import io.agentscope.core.event.*;
 import io.agentscope.core.model.ChatUsage;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -39,6 +40,9 @@ public class ObservabilityEventSink {
 
     @Resource
     private AgentCallLogMapper agentCallLogMapper;
+
+    @Value("${agentscope.ollama.model-name:unknown}")
+    private String modelName;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -122,6 +126,7 @@ public class ObservabilityEventSink {
     private void handleModelCallEnd(ModelCallEndEvent event, String userId, String conversationId) {
         AgentCallLogDO logDO = buildBaseLog(event.getId(), userId, conversationId);
         logDO.setEventType("MODEL_CALL_END");
+        logDO.setModelName(modelName);
 
         ChatUsage usage = event.getUsage();
         if (usage != null) {

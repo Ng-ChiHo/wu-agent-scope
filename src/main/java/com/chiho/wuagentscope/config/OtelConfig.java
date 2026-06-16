@@ -1,5 +1,6 @@
 package com.chiho.wuagentscope.config;
 
+import io.agentscope.core.tracing.OtelTracingMiddleware;
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
@@ -71,6 +72,17 @@ public class OtelConfig {
         log.info("OpenTelemetry SDK 已注册全局实例，OTLP endpoint={}", exporterEndpoint);
 
         return sdkInstance;
+    }
+
+    /**
+     * 注册 AgentScope 的 OTel 追踪中间件
+     * <p>
+     * OtelTracingMiddleware 通过 GlobalOpenTelemetry.getTracer() 获取 tracer，
+     * 必须在 openTelemetry() Bean 注册全局实例之后创建。
+     */
+    @Bean
+    public OtelTracingMiddleware otelTracingMiddleware() {
+        return new OtelTracingMiddleware();
     }
 
     @PreDestroy
