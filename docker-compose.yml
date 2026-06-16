@@ -1,0 +1,59 @@
+services:
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    container_name: jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTel gRPC exporter
+      - "4318:4318"     # OTel HTTP exporter
+      - "8888:8888"     # Jaeger telemetry metrics
+      - "8889:8889"     # spanmetrics Prometheus exporter
+    volumes:
+      - ./jaeger-config.yaml:/etc/jaeger/config.yml
+      - ./data/jaeger:/badger
+    command: ["--config", "/etc/jaeger/config.yml"]
+    environment:
+      SPANMETRICS_FLUSH_INTERVAL: 60s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/prometheus:/prometheus
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    # 关键修正：command 拆分成正确的参数格式
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    # 如果要访问宿主机服务（如运行在 Windows 上的应用），取消下面两行的注释：
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Docker Desktop for Windows 专用
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    ports:
+      - "3000:3000"
+    environment:
+      MB_EMBEDDING_SECRET_KEY: ${METABASE_EMBEDDING_SECRET_KEY}
+      MB_ENABLE_EMBEDDING: "true"
+      MB_DB_TYPE: h2
+    volumes:
+      - ./data/metabase:/metabase-data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -3,7 +3,9 @@ package com.chiho.wuagentscope.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.chiho.wuagentscope.common.exception.BusinessException;
 import com.chiho.wuagentscope.common.exception.ErrorCode;
+import com.chiho.wuagentscope.entity.AgentCallLogDO;
 import com.chiho.wuagentscope.entity.ChatConversationDO;
+import com.chiho.wuagentscope.mapper.AgentCallLogMapper;
 import com.chiho.wuagentscope.mapper.ChatConversationMapper;
 import com.chiho.wuagentscope.model.ConversationVO;
 import com.chiho.wuagentscope.model.MessageVO;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 public class ChatConversationService {
 
     private final ChatConversationMapper chatConversationMapper;
+    private final AgentCallLogMapper agentCallLogMapper;
     private final AgentStateStore agentStateStore;
 
     /** 时间戳格式：2026-06-13 20:04:02.071 */
@@ -101,7 +104,7 @@ public class ChatConversationService {
     }
 
     /**
-     * 删除会话（同时删除 MySQL 会话记录 + AgentStateStore 对话状态）
+     * 删除会话（同时删除 MySQL 会话记录 + AgentStateStore 对话状态 + Agent 调用日志）
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteConversation(Long userId, String conversationId) {
@@ -112,6 +115,12 @@ public class ChatConversationService {
                 .eq(ChatConversationDO::getUserId, userId)
                 .eq(ChatConversationDO::getConversationId, conversationId);
         chatConversationMapper.delete(queryWrapper);
+
+        // 删除 Agent 调用日志
+        LambdaQueryWrapper<AgentCallLogDO> logQueryWrapper = new LambdaQueryWrapper<AgentCallLogDO>()
+                .eq(AgentCallLogDO::getUserId, userId)
+                .eq(AgentCallLogDO::getConversationId, conversationId);
+        agentCallLogMapper.delete(logQueryWrapper);
 
         // 删除 AgentStateStore 中的对话状态
         agentStateStore.delete(String.valueOf(userId), conversationId);
