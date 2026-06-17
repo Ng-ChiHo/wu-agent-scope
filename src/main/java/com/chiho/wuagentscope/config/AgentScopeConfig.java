@@ -3,9 +3,12 @@ package com.chiho.wuagentscope.config;
 import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
 import com.chiho.wuagentscope.tools.ImageSearchTool;
 import com.chiho.wuagentscope.tools.TimeTool;
+import com.chiho.wuagentscope.tools.WebReaderTool;
+import com.chiho.wuagentscope.tools.WebSearchTool;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
+import io.agentscope.core.model.ToolSchema;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
@@ -16,6 +19,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 
 import javax.sql.DataSource;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * AgentScope 核心配置
@@ -52,6 +57,20 @@ public class AgentScopeConfig {
     private static final String DB_NAME = "agent_scope";
     // MySQL 状态储存table
     private static final String TABLE_NAME = "agent_state";
+
+    /** Agent 人格提示词（固定部分） */
+    private static final String PERSONA_PROMPT = String.join("\n",
+            "你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。",
+            "能深度思考、上下文连贯、主动追问模糊需求。",
+            "客观中立不误导，复杂内容分点说明，排版清爽适合手机阅读，坚守合规底线，全场景耐心解答用户所有问题。");
+
+    /** 工具使用通用规则（固定部分，适用于所有工具） */
+    private static final String TOOL_USAGE_RULES = String.join("\n",
+            "",
+            "## 工具使用规则",
+            "你拥有一系列工具，遇到对应场景时必须主动调用，不要凭记忆回答。",
+            "判断依据：如果用户的问题涉及实时数据、最新事件、外部信息查询、或你不确定的事实，就必须先调用相关工具获取信息再回答。",
+            "严禁在需要工具辅助的场景下凭记忆编造答案。");
 
     /**
      * 配置 Ollama 本地模型
@@ -107,10 +126,13 @@ public class AgentScopeConfig {
      * @return
      */
     @Bean
-    public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool) {
+    public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool,
+                           WebSearchTool webSearchTool, WebReaderTool webReaderTool) {
         Toolkit toolkit = new Toolkit();
         toolkit.registerTool(timeTool);
         toolkit.registerTool(imageSearchTool);
+        toolkit.registerTool(webSearchTool);
+        toolkit.registerTool(webReaderTool);
         return toolkit;
     }
 
@@ -135,9 +157,7 @@ public class AgentScopeConfig {
                                   OtelTracingMiddleware otelTracingMiddleware) {
         return ReActAgent.builder()
                 .name("common-chat")
-                .sysPrompt("你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。\n" +
-                        "能深度思考、上下文连贯、主动追问模糊需求。\n" +
-                        "客观中立不误导，复杂内容分点说明，排版清爽适合手机阅读，坚守合规底线，全场景耐心解答用户所有问题。")
+                .sysPrompt(buildSystemPrompt(toolkit))
                 .model(model)
                 .stateStore(stateStore)
                 .toolkit(toolkit)
@@ -145,5 +165,38 @@ public class AgentScopeConfig {
                 .middleware(otelTracingMiddleware)    // 再记录追踪
                 .maxIters(20)  // ReAct 循环最大迭代次数
                 .build();
+    }
+
+    /**
+     * 动态构建系统提示词
+     * <p>
+     * 工具部分从 Toolkit 的 ToolSchema 自动提取，新增工具只需注册到 Toolkit 即可，
+     * 无需手动修改系统提示词。
+     *
+     * @param toolkit 已注册所有工具的 Toolkit
+     * @return 完整的系统提示词
+     */
+    private String buildSystemPrompt(Toolkit toolkit) {
+        String toolSection = buildToolPrompt(toolkit);
+        return PERSONA_PROMPT + "\n\n" + toolSection + "\n\n" + TOOL_USAGE_RULES;
+    }
+
+    /**
+     * 从 Toolkit 动态生成工具说明
+     * <p>
+     * 遍历所有已注册的 ToolSchema，提取 name 和 description，
+     * 格式化为 LLM 易读的列表。
+     */
+    private String buildToolPrompt(Toolkit toolkit) {
+        List<ToolSchema> schemas = toolkit.getToolSchemas();
+        if (schemas == null || schemas.isEmpty()) {
+            return "";
+        }
+
+        String toolList = schemas.stream()
+                .map(schema -> "- " + schema.getName() + ": " + schema.getDescription())
+                .collect(Collectors.joining("\n"));
+
+        return "## 可用工具\n" + toolList;
     }
 }

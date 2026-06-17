@@ -63,10 +63,9 @@ public class ChatService {
         // streamEvents() 获取完整事件流
         Flux<AgentEvent> rawEvents = reActAgent.streamEvents(List.of(new UserMessage(message)), ctx);
 
-        // 包装：注入可观测性 sink（doOnNext 副作用，不阻塞流）
+        // 先用 observable 桥接消费所有事件（AGENT_END、MODEL_CALL_END 等），再过滤文本给前端
         Flux<AgentEvent> observedEvents = observabilityEventSink.wrapStream(rawEvents, String.valueOf(userId), sessionId);
 
-        // 过滤：只推文本增量给前端
         return observedEvents
                 .filter(event -> event.getType() == AgentEventType.TEXT_BLOCK_DELTA)
                 .map(event -> ((TextBlockDeltaEvent) event).getDelta())

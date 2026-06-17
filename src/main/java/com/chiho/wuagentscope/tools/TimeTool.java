@@ -3,6 +3,7 @@ package com.chiho.wuagentscope.tools;
 import cn.hutool.core.util.StrUtil;
 import io.agentscope.core.tool.Tool;
 import io.agentscope.core.tool.ToolParam;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.*;
@@ -12,13 +13,15 @@ import java.time.*;
  * @author chiho
  */
 @Component
+@Slf4j
 public class TimeTool {
 
-    @Tool(name = "get_current_date_time", description = "Get current date and time info, optional timezone ID. Example: Asia/Shanghai")
+    @Tool(name = "get_current_date_time", description = "获取当前日期和时间。当用户询问今天日期、当前时间、星期几时使用。")
     public String getCurrentDateTime(
             @ToolParam(name = "timezone", description = "Optional IANA timezone ID, default system timezone") String timezone
     ) {
         try {
+            log.info("##### ToolUse[TimeTool-get_current_date_time]: {}", timezone);
             ZoneId targetZone = StrUtil.isBlank(timezone) ? ZoneId.systemDefault() : ZoneId.of(timezone);
             ZonedDateTime now = ZonedDateTime.now(targetZone);
             LocalDate date = now.toLocalDate();

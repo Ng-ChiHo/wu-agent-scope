@@ -14,8 +14,10 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 可观测性事件消费器
@@ -26,11 +28,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 记录的关键事件：
  * - MODEL_CALL_END: LLM 调用完成（token 用量、耗时）
  * - TOOL_RESULT_END: 工具调用完成（工具名、结果状态）
- * - AGENT_START / AGENT_END: Agent 生命周期（总耗时、迭代次数）
+ * - AGENT_END: 在流结束时自动汇总（总耗时、迭代次数、总 token）
  * <p>
- * 与 OtelTracingMiddleware 互不干扰：
- * - OtelTracingMiddleware 工作在 Middleware 链（框架内部 call 链）
- * - 本类工作在 streamEvents() 的 Flux（对外事件流）
+ * 关联方式：所有事件在同一个 Flux 中顺序到达，使用局部累加器 + doOnComplete 汇总，
+ * 避免 ThreadLocal 在 Reactor 线程模型下的风险。
  *
  * @author ChiHo
  */
@@ -46,17 +47,13 @@ public class ObservabilityEventSink {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** 记录每个 run 的开始时间，用于计算 Agent 总耗时 */
-    private final Map<String, Long> runStartTimes = new ConcurrentHashMap<>();
-
-    /** 记录每个 run 的用户信息 */
-    private final Map<String, RunMeta> runMetaMap = new ConcurrentHashMap<>();
-
     /**
      * 包装事件流，注入可观测性副作用
      * <p>
-     * 使用 doOnNext 消费关键事件并异步写入 MySQL，
-     * 不阻塞原始事件流，SSE 推送给前端的 TEXT_BLOCK_DELTA 不受影响。
+     * 流程：
+     * 1. doOnNext: 逐个处理事件，MODEL_CALL_END / TOOL_RESULT_END 立即写 DB
+     * 2. doOnComplete: 流结束时汇总写入 AGENT_END 记录
+     * 3. doOnError: 记录异常日志
      *
      * @param events         原始事件流
      * @param userId         用户ID
@@ -64,96 +61,110 @@ public class ObservabilityEventSink {
      * @return 包装后的事件流（与原始流行为一致）
      */
     public Flux<AgentEvent> wrapStream(Flux<AgentEvent> events, String userId, String conversationId) {
-        return events.doOnNext(event -> {
-            try {
-                handleEvent(event, userId, conversationId);
-            } catch (Exception e) {
-                // 可观测性异常不应影响主流程
-                log.warn("ObservabilityEventSink 处理事件异常: type={}", event.getType(), e);
-            }
-        });
+        // 用局部变量累加，天然安全：同一个 Flux 的 doOnNext/doOnComplete 顺序执行
+        String runId = UUID.randomUUID().toString().replace("-", "");
+        AtomicLong startTime = new AtomicLong(0);
+        AtomicInteger iterations = new AtomicInteger(0);
+        AtomicLong totalInputTokens = new AtomicLong(0);
+        AtomicLong totalOutputTokens = new AtomicLong(0);
+
+        return events
+                .doOnNext(event -> {
+                    try {
+                        handleEvent(event, runId, userId, conversationId,
+                                startTime, iterations, totalInputTokens, totalOutputTokens);
+                    } catch (Exception e) {
+                        log.warn("ObservabilityEventSink 处理事件异常: type={}", event.getType(), e);
+                    }
+                })
+                .doOnComplete(() -> {
+                    try {
+                        saveAgentEnd(runId, userId, conversationId,
+                                startTime.get(), iterations.get(),
+                                totalInputTokens.get(), totalOutputTokens.get());
+                    } catch (Exception e) {
+                        log.warn("ObservabilityEventSink 保存 AGENT_END 异常", e);
+                    }
+                })
+                .doOnError(e -> log.error("事件流异常: userId={}, runId={}", userId, runId, e));
     }
 
     /**
-     * 处理单个事件（使用 instanceof 替代 pattern matching switch，兼容 Java 8）
+     * 处理单个事件
      */
-    private void handleEvent(AgentEvent event, String userId, String conversationId) {
+    private void handleEvent(AgentEvent event, String runId, String userId, String conversationId,
+                             AtomicLong startTime, AtomicInteger iterations,
+                             AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
         if (event instanceof AgentStartEvent) {
-            handleAgentStart((AgentStartEvent) event, userId, conversationId);
-        } else if (event instanceof AgentEndEvent) {
-            handleAgentEnd((AgentEndEvent) event, userId, conversationId);
-        } else if (event instanceof ModelCallEndEvent) {
-            handleModelCallEnd((ModelCallEndEvent) event, userId, conversationId);
-        } else if (event instanceof ToolResultEndEvent) {
-            handleToolResultEnd((ToolResultEndEvent) event, userId, conversationId);
+            startTime.set(System.currentTimeMillis());
+        } else if (event instanceof ModelCallEndEvent e) {
+            handleModelCallEnd(e, runId, userId, conversationId, iterations, totalInputTokens, totalOutputTokens);
+        } else if (event instanceof ToolResultEndEvent e) {
+            handleToolResultEnd(e, runId, userId, conversationId);
         }
-        // 其他事件不持久化
+        // AGENT_END 不在这里处理，由 doOnComplete 汇总写入
     }
 
     /**
-     * Agent 开始：记录 run 起始时间和元信息
+     * LLM 调用结束：立即写入单次调用记录 + 累加总量
      */
-    private void handleAgentStart(AgentStartEvent event, String userId, String conversationId) {
-        String runId = event.getId();
-        runStartTimes.put(runId, System.currentTimeMillis());
-        runMetaMap.put(runId, new RunMeta(userId, conversationId));
-    }
+    private void handleModelCallEnd(ModelCallEndEvent event, String runId, String userId, String conversationId,
+                                    AtomicInteger iterations, AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
+        iterations.incrementAndGet();
 
-    /**
-     * Agent 结束：记录总耗时
-     */
-    private void handleAgentEnd(AgentEndEvent event, String userId, String conversationId) {
-        String runId = event.getId();
-        Long startTime = runStartTimes.remove(runId);
-        runMetaMap.remove(runId);
+        ChatUsage usage = event.getUsage();
 
-        if (startTime == null) {
-            return;
+        // 累加 token 到总量
+        if (usage != null) {
+            totalInputTokens.addAndGet(usage.getInputTokens());
+            totalOutputTokens.addAndGet(usage.getOutputTokens());
         }
 
-        long durationMs = System.currentTimeMillis() - startTime;
-
-        AgentCallLogDO logDO = buildBaseLog(event.getId(), userId, conversationId);
-        logDO.setEventType("AGENT_END");
-        logDO.setDurationMs(durationMs);
-
-        saveLog(logDO);
-    }
-
-    /**
-     * LLM 调用结束：记录 token 用量和耗时
-     */
-    private void handleModelCallEnd(ModelCallEndEvent event, String userId, String conversationId) {
-        AgentCallLogDO logDO = buildBaseLog(event.getId(), userId, conversationId);
+        // 写入单次调用记录
+        AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
         logDO.setEventType("MODEL_CALL_END");
         logDO.setModelName(modelName);
 
-        ChatUsage usage = event.getUsage();
         if (usage != null) {
             logDO.setInputTokens(usage.getInputTokens());
             logDO.setOutputTokens(usage.getOutputTokens());
-            // getTime() 返回秒，转为毫秒
             if (usage.getTime() > 0) {
                 logDO.setDurationMs((long) (usage.getTime() * 1000));
             }
         }
 
         logDO.setDetail(toJson(event));
-
         saveLog(logDO);
     }
 
     /**
-     * 工具调用结束：记录工具名和结果状态
+     * 工具调用结束：立即写入记录
      */
-    private void handleToolResultEnd(ToolResultEndEvent event, String userId, String conversationId) {
-        AgentCallLogDO logDO = buildBaseLog(event.getId(), userId, conversationId);
+    private void handleToolResultEnd(ToolResultEndEvent event, String runId, String userId, String conversationId) {
+        AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
         logDO.setEventType("TOOL_RESULT_END");
         logDO.setToolName(event.getToolCallName());
         logDO.setToolState(event.getState() != null ? event.getState().name() : null);
-
         logDO.setDetail(toJson(event));
+        saveLog(logDO);
+    }
 
+    /**
+     * 流结束时汇总写入 AGENT_END 记录
+     */
+    private void saveAgentEnd(String runId, String userId, String conversationId,
+                              long startTime, int iterations, long inputTokens, long outputTokens) {
+        long durationMs = startTime > 0 ? System.currentTimeMillis() - startTime : 0;
+
+        log.info("Agent 运行结束: runId={}, userId={}, iterations={}, durationMs={}, inputTokens={}, outputTokens={}",
+                runId, userId, iterations, durationMs, inputTokens, outputTokens);
+
+        AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
+        logDO.setEventType("AGENT_END");
+        logDO.setDurationMs(durationMs);
+        logDO.setModelName(modelName);
+        logDO.setInputTokens((int) inputTokens);
+        logDO.setOutputTokens((int) outputTokens);
         saveLog(logDO);
     }
 
@@ -190,19 +201,6 @@ public class ObservabilityEventSink {
         } catch (JsonProcessingException e) {
             log.debug("事件序列化失败: {}", event.getType(), e);
             return null;
-        }
-    }
-
-    /**
-     * Run 元信息（内部使用）
-     */
-    private static class RunMeta {
-        final String userId;
-        final String conversationId;
-
-        RunMeta(String userId, String conversationId) {
-            this.userId = userId;
-            this.conversationId = conversationId;
         }
     }
 }

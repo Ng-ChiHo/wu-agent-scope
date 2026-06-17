@@ -32,9 +32,10 @@ public class ImageSearchTool {
     @Value("${pexels.api.url}")
     private String API_URL;
 
-    @Tool(name = "search_image_tool", description = "Search images from website")
+    @Tool(name = "search_image_tool", description = "搜索图片。当用户需要查找、搜索图片时使用。")
     public String searchImageInTool(@ToolParam(name = "query", description = "Search query keyword") String query) {
         try {
+            log.info("##### ToolUse[ImageSearchTool-search_image_tool]: {}", query);
             return String.join(",", searchMediumImages(query));
         } catch (Exception e) {
             return "Error search image: " + e.getMessage();

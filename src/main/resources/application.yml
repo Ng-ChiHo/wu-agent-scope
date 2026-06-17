@@ -59,6 +59,19 @@ otel:
     enabled: true
     endpoint: http://localhost:4317
 
+# SearXNG 联网搜索配置（Docker 部署，端口 8010）
+searxng:
+  base-url: http://localhost:8010
+  timeout: 10000
+
+# Jina Reader 网页内容提取配置（免费使用，无需 API Key）
+jina:
+  reader:
+    base-url: https://r.jina.ai
+    timeout: 30000
+    api-key:           # 可选，填写后免费额度更高
+    max-length: 8000   # 返回内容最大字符数，避免撑爆 LLM 上下文
+
 # 日志级别
 logging:
   level:
