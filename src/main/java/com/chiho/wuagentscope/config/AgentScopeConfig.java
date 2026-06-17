@@ -3,9 +3,11 @@ package com.chiho.wuagentscope.config;
 import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
 import com.chiho.wuagentscope.tools.ImageSearchTool;
 import com.chiho.wuagentscope.tools.TimeTool;
+import com.chiho.wuagentscope.tools.TokenUsageTool;
 import com.chiho.wuagentscope.tools.WebReaderTool;
 import com.chiho.wuagentscope.tools.WebSearchTool;
 import io.agentscope.core.ReActAgent;
+import io.agentscope.core.credential.CredentialBase;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
 import io.agentscope.core.model.ToolSchema;
@@ -127,12 +129,14 @@ public class AgentScopeConfig {
      */
     @Bean
     public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool,
-                           WebSearchTool webSearchTool, WebReaderTool webReaderTool) {
+                           WebSearchTool webSearchTool, WebReaderTool webReaderTool,
+                           TokenUsageTool tokenUsageTool) {
         Toolkit toolkit = new Toolkit();
         toolkit.registerTool(timeTool);
         toolkit.registerTool(imageSearchTool);
         toolkit.registerTool(webSearchTool);
         toolkit.registerTool(webReaderTool);
+        toolkit.registerTool(tokenUsageTool);
         return toolkit;
     }
 
