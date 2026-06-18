@@ -7,6 +7,7 @@ import com.chiho.wuagentscope.service.ChatConversationService;
 import com.chiho.wuagentscope.service.ChatService;
 import com.chiho.wuagentscope.service.UserService;
 import jakarta.annotation.Resource;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
  */
 @RestController
 @RequestMapping("/ai")
+@Profile("!harness")
 public class AiController {
 
     @Resource

@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.Profile;
 
 import javax.sql.DataSource;
 import java.util.List;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
  * @author ChiHo
  */
 @Configuration
+@Profile("!harness")
 @DependsOn("openTelemetry")
 public class AgentScopeConfig {
 

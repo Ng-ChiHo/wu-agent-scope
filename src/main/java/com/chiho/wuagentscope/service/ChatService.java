@@ -12,6 +12,7 @@ import jakarta.annotation.Resource;
 
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -30,6 +31,7 @@ import reactor.core.publisher.Flux;
  * @author ChiHo
  */
 @Service
+@Profile("!harness")
 @Slf4j
 public class ChatService {
 

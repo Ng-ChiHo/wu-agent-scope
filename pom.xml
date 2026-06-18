@@ -46,6 +46,13 @@
             <version>${agentscope.version}</version>
         </dependency>
 
+        <!-- AgentScope Harness（工程级 Agent 运行时：子Agent编排、记忆管理、Plan模式等） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-harness</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+
         <!-- AgentScope MySQL 状态存储扩展（MysqlAgentStateStore） -->
         <dependency>
             <groupId>io.agentscope</groupId>
