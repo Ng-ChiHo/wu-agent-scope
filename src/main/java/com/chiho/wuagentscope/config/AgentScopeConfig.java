@@ -1,29 +1,19 @@
 package com.chiho.wuagentscope.config;
 
-import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
 import com.chiho.wuagentscope.tools.ImageSearchTool;
 import com.chiho.wuagentscope.tools.TimeTool;
 import com.chiho.wuagentscope.tools.TokenUsageTool;
 import com.chiho.wuagentscope.tools.WebReaderTool;
 import com.chiho.wuagentscope.tools.WebSearchTool;
-import io.agentscope.core.ReActAgent;
-import io.agentscope.core.credential.CredentialBase;
-import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
-import io.agentscope.core.model.OllamaChatModel;
-import io.agentscope.core.model.ToolSchema;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
-import io.agentscope.core.tracing.OtelTracingMiddleware;
 import io.agentscope.extensions.mysql.state.MysqlAgentStateStore;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Profile;
 
 import javax.sql.DataSource;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * AgentScope 核心配置
@@ -61,40 +51,6 @@ public class AgentScopeConfig {
     private static final String DB_NAME = "agent_scope";
     // MySQL 状态储存table
     private static final String TABLE_NAME = "agent_state";
-
-    /** Agent 人格提示词（固定部分） */
-    private static final String PERSONA_PROMPT = String.join("\n",
-            "你是高情商、专业靠谱的智能助手，待人友好、逻辑清晰、回答通俗接地气。",
-            "能深度思考、上下文连贯、主动追问模糊需求。",
-            "客观中立不误导，复杂内容分点说明，排版清爽适合手机阅读，坚守合规底线，全场景耐心解答用户所有问题。");
-
-    /** 工具使用通用规则（固定部分，适用于所有工具） */
-    private static final String TOOL_USAGE_RULES = String.join("\n",
-            "",
-            "## 工具使用规则",
-            "你拥有一系列工具，遇到对应场景时必须主动调用，不要凭记忆回答。",
-            "判断依据：如果用户的问题涉及实时数据、最新事件、外部信息查询、或你不确定的事实，就必须先调用相关工具获取信息再回答。",
-            "严禁在需要工具辅助的场景下凭记忆编造答案。");
-
-    /**
-     * 配置 Ollama 本地模型
-     * <p>
-     * OllamaChatModel 连接本地 Ollama 服务（默认 http://localhost:11434），
-     * 使用 qwen3:14b 模型。
-     * <p>
-     * Formatter 负责将 AgentScope 的 Msg 对象转换为 Ollama API 期望的请求载荷。
-     * 切换模型只需改 modelName，如 "llama3"、"deepseek-r1:14b" 等。
-     */
-    @Bean
-    public OllamaChatModel ollamaChatModel(
-            @Value("${agentscope.ollama.base-url:http://localhost:11434}") String baseUrl,
-            @Value("${agentscope.ollama.model-name:qwen3:14b}") String modelName) {
-        return OllamaChatModel.builder()
-                .baseUrl(baseUrl)
-                .modelName(modelName)
-                .formatter(new OllamaChatFormatter())
-                .build();
-    }
 
     /**
      * 配置 MySQL 状态存储（企业级）
@@ -142,67 +98,4 @@ public class AgentScopeConfig {
         return toolkit;
     }
 
-    /**
-     * 配置 ReActAgent（裸推理-行动循环引擎）
-     * <p>
-     * 核心能力：
-     * 1. 对话持久化 —— 相同 (userId, sessionId) 的第二次 call() 自动恢复上次状态
-     * 2. 多用户并发 —— 同一实例可服务多个用户，不同 session 完全并行，同 session 自动串行
-     * 3. ReAct 循环 —— 模型推理 → 工具调用 → 观察结果 → 继续推理，直到完成
-     * <p>
-     * 切换模型只需改 .model(...) 字符串前缀：
-     * - "ollama:qwen3:14b" —— 本地 Ollama
-     * - "dashscope:qwen-plus" —— 阿里云 DashScope
-     * - "openai:gpt-4o" —— OpenAI
-     * - "anthropic:claude-sonnet-4-5" —— Anthropic
-     */
-    @Bean
-    public ReActAgent reActAgent(OllamaChatModel model, AgentStateStore stateStore,
-                                  Toolkit toolkit,
-                                  ContextTrimMiddleware contextTrimMiddleware,
-                                  OtelTracingMiddleware otelTracingMiddleware) {
-        return ReActAgent.builder()
-                .name("common-chat")
-                .sysPrompt(buildSystemPrompt(toolkit))
-                .model(model)
-                .stateStore(stateStore)
-                .toolkit(toolkit)
-                .middleware(contextTrimMiddleware)   // 先截断上下文
-                .middleware(otelTracingMiddleware)    // 再记录追踪
-                .maxIters(20)  // ReAct 循环最大迭代次数
-                .build();
-    }
-
-    /**
-     * 动态构建系统提示词
-     * <p>
-     * 工具部分从 Toolkit 的 ToolSchema 自动提取，新增工具只需注册到 Toolkit 即可，
-     * 无需手动修改系统提示词。
-     *
-     * @param toolkit 已注册所有工具的 Toolkit
-     * @return 完整的系统提示词
-     */
-    private String buildSystemPrompt(Toolkit toolkit) {
-        String toolSection = buildToolPrompt(toolkit);
-        return PERSONA_PROMPT + "\n\n" + toolSection + "\n\n" + TOOL_USAGE_RULES;
-    }
-
-    /**
-     * 从 Toolkit 动态生成工具说明
-     * <p>
-     * 遍历所有已注册的 ToolSchema，提取 name 和 description，
-     * 格式化为 LLM 易读的列表。
-     */
-    private String buildToolPrompt(Toolkit toolkit) {
-        List<ToolSchema> schemas = toolkit.getToolSchemas();
-        if (schemas == null || schemas.isEmpty()) {
-            return "";
-        }
-
-        String toolList = schemas.stream()
-                .map(schema -> "- " + schema.getName() + ": " + schema.getDescription())
-                .collect(Collectors.joining("\n"));
-
-        return "## 可用工具\n" + toolList;
-    }
 }

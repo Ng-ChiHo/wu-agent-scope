@@ -21,6 +21,7 @@ public enum ErrorCode {
     USER_QUERY_NOT_FOUND(40014, "用户不存在"),
     USER_INVALID_STATUS(40015, "用户已被禁用"),
     PASSWORD_ERROR(40016, "密码错误"),
+    MODEL_NOT_FOUND(40020, "不支持的模型"),
 
     // 系统错误码 (500xx)
     SYSTEM_ERROR(50000, "系统异常"),

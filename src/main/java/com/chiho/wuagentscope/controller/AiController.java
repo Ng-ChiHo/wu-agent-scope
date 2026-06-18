@@ -3,6 +3,8 @@ package com.chiho.wuagentscope.controller;
 import com.chiho.wuagentscope.common.R;
 import com.chiho.wuagentscope.common.exception.BusinessException;
 import com.chiho.wuagentscope.common.exception.ErrorCode;
+import com.chiho.wuagentscope.config.ModelAgentRegistry;
+import com.chiho.wuagentscope.config.ModelConfig;
 import com.chiho.wuagentscope.service.ChatConversationService;
 import com.chiho.wuagentscope.service.ChatService;
 import com.chiho.wuagentscope.service.UserService;
@@ -12,11 +14,12 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * AI 交互控制器
  * <p>
- * 提供与大模型对话交互的接口（SSE 流式 + 同步）。
+ * 提供与大模型对话交互的接口（SSE 流式 + 同步），支持多模型选择。
  * @author ChiHo
  */
 @RestController
@@ -33,32 +36,27 @@ public class AiController {
     @Resource
     private ChatConversationService conversationService;
 
+    @Resource
+    private ModelAgentRegistry modelRegistry;
+
     /**
      * 通用 AI 聊天助手（SSE 流式输出）
-     * <p>
-     * 推荐使用此接口，实时推送模型生成的文本增量，前端可逐字展示。
-     * <p>
-     * 调用链路：
-     * 1. 验证 token → 获取 userId
-     * 2. 自动创建/获取会话记录（MySQL）
-     * 3. 创建 SseEmitter（5 分钟超时）
-     * 4. 调用 ChatService.chatStream() → ReActAgent.streamEvents()
-     * 5. AgentScope 自动从 MysqlAgentStateStore 加载历史对话
-     * 6. 模型推理，流式返回 TEXT_BLOCK_DELTA 事件
-     * 7. 推理结束后自动保存 AgentState（含完整对话历史）
      *
      * @param message 用户消息
      * @param chatId  会话ID（前端生成的唯一标识，相同 ID 恢复历史对话）
      * @param token   用户认证 token
+     * @param modelId 模型ID（可选，为空时使用默认模型）
      * @return SSE 流式响应
      */
     @GetMapping("/chat/common/sse")
-    public SseEmitter doChatCommonSse(String message, String chatId, @RequestParam String token) {
+    public SseEmitter doChatCommonSse(String message, String chatId,
+                                      @RequestParam String token,
+                                      @RequestParam(required = false) String modelId) {
         Long userId = validateToken(token);
-        conversationService.getOrCreateConversation(userId, chatId, message);
+        conversationService.getOrCreateConversation(userId, chatId, message, modelId);
 
         SseEmitter emitter = new SseEmitter(300_000L);
-        chatService.chatStream(userId, chatId, message)
+        chatService.chatStream(userId, chatId, message, modelId)
                 .subscribe(
                         chunk -> {
                             try {
@@ -75,20 +73,29 @@ public class AiController {
 
     /**
      * 通用 AI 聊天助手（同步调用）
-     * <p>
-     * 等待 Agent 完成推理后一次性返回完整结果。
      *
      * @param message 用户消息
      * @param chatId  会话ID
      * @param token   用户认证 token
+     * @param modelId 模型ID（可选）
      * @return 统一返回格式的 AI 回复
      */
     @GetMapping("/chat/common")
-    public R<String> doChatCommon(String message, String chatId, @RequestParam String token) {
+    public R<String> doChatCommon(String message, String chatId,
+                                  @RequestParam String token,
+                                  @RequestParam(required = false) String modelId) {
         Long userId = validateToken(token);
-        conversationService.getOrCreateConversation(userId, chatId, message);
-        String response = chatService.chat(userId, chatId, message);
+        conversationService.getOrCreateConversation(userId, chatId, message, modelId);
+        String response = chatService.chat(userId, chatId, message, modelId);
         return R.success(response);
+    }
+
+    /**
+     * 获取可用模型列表
+     */
+    @GetMapping("/models")
+    public R<List<ModelConfig>> getAvailableModels() {
+        return R.success(modelRegistry.getAvailableModels());
     }
 
     /**

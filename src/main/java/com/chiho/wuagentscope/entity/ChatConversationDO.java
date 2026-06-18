@@ -32,6 +32,10 @@ public class ChatConversationDO {
     @TableField("conversation_name")
     private String conversationName;
 
+    /** 最近使用的模型ID */
+    @TableField("last_model_id")
+    private String lastModelId;
+
     /** 创建时间 */
     @TableField("create_time")
     private LocalDateTime createTime;

@@ -54,7 +54,7 @@ public class HarnessAiController {
     @GetMapping("/chat/sse")
     public SseEmitter doChatSse(String message, String chatId, @RequestParam String token) {
         Long userId = validateToken(token);
-        conversationService.getOrCreateConversation(userId, chatId, message);
+        conversationService.getOrCreateConversation(userId, chatId, message, null);
 
         SseEmitter emitter = new SseEmitter(300_000L);
         harnessChatService.chatStream(userId, chatId, message)
@@ -78,7 +78,7 @@ public class HarnessAiController {
     @GetMapping("/chat")
     public R<String> doChat(String message, String chatId, @RequestParam String token) {
         Long userId = validateToken(token);
-        conversationService.getOrCreateConversation(userId, chatId, message);
+        conversationService.getOrCreateConversation(userId, chatId, message, null);
         String response = harnessChatService.chat(userId, chatId, message);
         return R.success(response);
     }

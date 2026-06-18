@@ -8,7 +8,6 @@ import io.agentscope.core.event.*;
 import io.agentscope.core.model.ChatUsage;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -42,9 +41,6 @@ public class ObservabilityEventSink {
     @Resource
     private AgentCallLogMapper agentCallLogMapper;
 
-    @Value("${agentscope.ollama.model-name:unknown}")
-    private String modelName;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -58,9 +54,10 @@ public class ObservabilityEventSink {
      * @param events         原始事件流
      * @param userId         用户ID
      * @param conversationId 会话ID
+     * @param modelId        本次调用使用的模型ID
      * @return 包装后的事件流（与原始流行为一致）
      */
-    public Flux<AgentEvent> wrapStream(Flux<AgentEvent> events, String userId, String conversationId) {
+    public Flux<AgentEvent> wrapStream(Flux<AgentEvent> events, Long userId, String conversationId, String modelId) {
         // 用局部变量累加，天然安全：同一个 Flux 的 doOnNext/doOnComplete 顺序执行
         String runId = UUID.randomUUID().toString().replace("-", "");
         AtomicLong startTime = new AtomicLong(0);
@@ -71,7 +68,7 @@ public class ObservabilityEventSink {
         return events
                 .doOnNext(event -> {
                     try {
-                        handleEvent(event, runId, userId, conversationId,
+                        handleEvent(event, runId, userId, conversationId, modelId,
                                 startTime, iterations, totalInputTokens, totalOutputTokens);
                     } catch (Exception e) {
                         log.warn("ObservabilityEventSink 处理事件异常: type={}", event.getType(), e);
@@ -79,7 +76,7 @@ public class ObservabilityEventSink {
                 })
                 .doOnComplete(() -> {
                     try {
-                        saveAgentEnd(runId, userId, conversationId,
+                        saveAgentEnd(runId, userId, conversationId, modelId,
                                 startTime.get(), iterations.get(),
                                 totalInputTokens.get(), totalOutputTokens.get());
                     } catch (Exception e) {
@@ -92,13 +89,13 @@ public class ObservabilityEventSink {
     /**
      * 处理单个事件
      */
-    private void handleEvent(AgentEvent event, String runId, String userId, String conversationId,
-                             AtomicLong startTime, AtomicInteger iterations,
+    private void handleEvent(AgentEvent event, String runId, Long userId, String conversationId,
+                             String modelId, AtomicLong startTime, AtomicInteger iterations,
                              AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
         if (event instanceof AgentStartEvent) {
             startTime.set(System.currentTimeMillis());
         } else if (event instanceof ModelCallEndEvent e) {
-            handleModelCallEnd(e, runId, userId, conversationId, iterations, totalInputTokens, totalOutputTokens);
+            handleModelCallEnd(e, runId, userId, conversationId, modelId, iterations, totalInputTokens, totalOutputTokens);
         } else if (event instanceof ToolResultEndEvent e) {
             handleToolResultEnd(e, runId, userId, conversationId);
         }
@@ -108,8 +105,9 @@ public class ObservabilityEventSink {
     /**
      * LLM 调用结束：立即写入单次调用记录 + 累加总量
      */
-    private void handleModelCallEnd(ModelCallEndEvent event, String runId, String userId, String conversationId,
-                                    AtomicInteger iterations, AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
+    private void handleModelCallEnd(ModelCallEndEvent event, String runId, Long userId, String conversationId,
+                                    String modelId, AtomicInteger iterations,
+                                    AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
         iterations.incrementAndGet();
 
         ChatUsage usage = event.getUsage();
@@ -123,7 +121,7 @@ public class ObservabilityEventSink {
         // 写入单次调用记录
         AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
         logDO.setEventType("MODEL_CALL_END");
-        logDO.setModelName(modelName);
+        logDO.setModelName(modelId);
 
         if (usage != null) {
             logDO.setInputTokens(usage.getInputTokens());
@@ -140,7 +138,7 @@ public class ObservabilityEventSink {
     /**
      * 工具调用结束：立即写入记录
      */
-    private void handleToolResultEnd(ToolResultEndEvent event, String runId, String userId, String conversationId) {
+    private void handleToolResultEnd(ToolResultEndEvent event, String runId, Long userId, String conversationId) {
         AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
         logDO.setEventType("TOOL_RESULT_END");
         logDO.setToolName(event.getToolCallName());
@@ -152,7 +150,7 @@ public class ObservabilityEventSink {
     /**
      * 流结束时汇总写入 AGENT_END 记录
      */
-    private void saveAgentEnd(String runId, String userId, String conversationId,
+    private void saveAgentEnd(String runId, Long userId, String conversationId, String modelId,
                               long startTime, int iterations, long inputTokens, long outputTokens) {
         long durationMs = startTime > 0 ? System.currentTimeMillis() - startTime : 0;
 
@@ -162,7 +160,7 @@ public class ObservabilityEventSink {
         AgentCallLogDO logDO = buildBaseLog(runId, userId, conversationId);
         logDO.setEventType("AGENT_END");
         logDO.setDurationMs(durationMs);
-        logDO.setModelName(modelName);
+        logDO.setModelName(modelId);
         logDO.setInputTokens((int) inputTokens);
         logDO.setOutputTokens((int) outputTokens);
         saveLog(logDO);
@@ -171,7 +169,7 @@ public class ObservabilityEventSink {
     /**
      * 构建基础日志对象
      */
-    private AgentCallLogDO buildBaseLog(String runId, String userId, String conversationId) {
+    private AgentCallLogDO buildBaseLog(String runId, Long userId, String conversationId) {
         AgentCallLogDO logDO = new AgentCallLogDO();
         logDO.setRunId(runId);
         logDO.setUserId(userId);

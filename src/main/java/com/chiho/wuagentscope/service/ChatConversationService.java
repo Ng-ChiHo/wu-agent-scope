@@ -46,15 +46,17 @@ public class ChatConversationService {
      * 创建或获取会话
      * <p>
      * 首次使用某个 conversationId 时自动创建会话记录，
-     * 后续调用直接返回已有记录。
+     * 后续调用直接返回已有记录。每次调用都会更新 lastModelId。
      *
      * @param userId         用户ID
      * @param conversationId 会话ID
      * @param firstMessage   首条消息（用于生成会话名称）
+     * @param modelId        本次使用的模型ID（可选）
      * @return 会话记录
      */
     @Transactional(rollbackFor = Exception.class)
-    public ChatConversationDO getOrCreateConversation(Long userId, String conversationId, String firstMessage) {
+    public ChatConversationDO getOrCreateConversation(Long userId, String conversationId,
+                                                      String firstMessage, String modelId) {
         // 查询是否已存在
         LambdaQueryWrapper<ChatConversationDO> queryWrapper = new LambdaQueryWrapper<ChatConversationDO>()
                 .eq(ChatConversationDO::getUserId, userId)
@@ -62,6 +64,12 @@ public class ChatConversationService {
         ChatConversationDO existing = chatConversationMapper.selectOne(queryWrapper);
 
         if (existing != null) {
+            // 更新最近使用的模型
+            if (modelId != null && !modelId.equals(existing.getLastModelId())) {
+                existing.setLastModelId(modelId);
+                existing.setUpdateTime(LocalDateTime.now());
+                chatConversationMapper.updateById(existing);
+            }
             return existing;
         }
 
@@ -71,6 +79,7 @@ public class ChatConversationService {
         newConversation.setUserId(userId);
         newConversation.setConversationId(conversationId);
         newConversation.setConversationName(conversationName);
+        newConversation.setLastModelId(modelId);
         newConversation.setCreateTime(LocalDateTime.now());
         newConversation.setUpdateTime(LocalDateTime.now());
         chatConversationMapper.insert(newConversation);
@@ -188,6 +197,7 @@ public class ChatConversationService {
         vo.setConversationId(conv.getConversationId());
         vo.setConversationName(conv.getConversationName());
         vo.setCreateTime(conv.getCreateTime() != null ? conv.getCreateTime().toString() : null);
+        vo.setLastModelId(conv.getLastModelId());
         return vo;
     }
 

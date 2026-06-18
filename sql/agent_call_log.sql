@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS `agent_call_log` (
     `id`              BIGINT       AUTO_INCREMENT PRIMARY KEY,
     `conversation_id` VARCHAR(64)  NOT NULL     COMMENT '会话ID（chatId）',
-    `user_id`         VARCHAR(64)  NOT NULL     COMMENT '用户ID',
+    `user_id`         BIGINT       NOT NULL     COMMENT '用户ID',
     `run_id`          VARCHAR(64)  NOT NULL     COMMENT 'AgentScope run_id',
     `event_type`      VARCHAR(32)  NOT NULL     COMMENT '事件类型：MODEL_CALL_END / TOOL_RESULT_END / AGENT_END',
     `input_tokens`    INT                      COMMENT '输入 token 数',

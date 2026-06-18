@@ -16,4 +16,7 @@ public class ConversationVO {
 
     /** 创建时间 */
     private String createTime;
+
+    /** 最近使用的模型ID */
+    private String lastModelId;
 }

@@ -32,7 +32,7 @@ public class AgentCallLogDO {
 
     /** 用户ID */
     @TableField("user_id")
-    private String userId;
+    private Long userId;
 
     /** AgentScope run_id（一次完整 call 的唯一标识） */
     @TableField("run_id")

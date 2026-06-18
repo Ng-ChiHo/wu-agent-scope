@@ -57,7 +57,7 @@ public class HarnessChatService {
         Flux<AgentEvent> rawEvents = harnessAgent.streamEvents(List.of(new UserMessage(message)), ctx);
 
         Flux<AgentEvent> observedEvents = observabilityEventSink.wrapStream(
-                rawEvents, String.valueOf(userId), sessionId);
+                rawEvents, userId, sessionId, "harness");
 
         return observedEvents
                 .filter(event -> event.getType() == AgentEventType.TEXT_BLOCK_DELTA)
@@ -73,7 +73,7 @@ public class HarnessChatService {
 
         Flux<AgentEvent> rawEvents = harnessAgent.streamEvents(List.of(new UserMessage(message)), ctx);
 
-        return observabilityEventSink.wrapStream(rawEvents, String.valueOf(userId), sessionId)
+        return observabilityEventSink.wrapStream(rawEvents, userId, sessionId, "harness")
                 .doOnError(e -> log.error("流式聊天异常: userId={}, sessionId={}", userId, sessionId, e));
     }
 

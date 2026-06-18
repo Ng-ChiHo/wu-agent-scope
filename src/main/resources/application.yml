@@ -40,10 +40,28 @@ mybatis-plus:
 
 # AgentScope 配置
 agentscope:
-  # Ollama 本地模型配置
-  ollama:
-    base-url: http://localhost:11434
-    model-name: qwen3:14b
+  # 多模型配置
+  models:
+    default-model: qwen3:14b
+    available:
+      - id: qwen3:14b
+        provider: ollama
+        base-url: http://localhost:11434
+        model-name: qwen3:14b
+        display-name: "通义千问 14B"
+        max-iters: 20
+      - id: mfdoom/deepseek-v2-tool-calling:latest
+        provider: ollama
+        base-url: http://localhost:11434
+        model-name: mfdoom/deepseek-v2-tool-calling:latest
+        display-name: "DeepSeek V2"
+        max-iters: 20
+      - id: deepseek-r1:14b
+        provider: ollama
+        base-url: http://localhost:11434
+        model-name: deepseek-r1:14b
+        display-name: "DeepSeek R1"
+        max-iters: 20
   # 会话状态存储：MysqlAgentStateStore（自动建表，无需额外配置）
 
 # Agent 上下文截断配置

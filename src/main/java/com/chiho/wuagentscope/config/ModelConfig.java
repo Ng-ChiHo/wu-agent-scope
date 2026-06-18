@@ -1,0 +1,34 @@
+package com.chiho.wuagentscope.config;
+
+import lombok.Data;
+
+/**
+ * 模型配置属性
+ * <p>
+ * 对应 application.yml 中 agentscope.models.available 列表的每一项。
+ * @author ChiHo
+ */
+@Data
+public class ModelConfig {
+
+    /** 模型唯一标识（如 "qwen3:14b"、"deepseek-r1:14b"） */
+    private String id;
+
+    /** 模型提供者（ollama / dashscope / openai） */
+    private String provider;
+
+    /** 模型服务地址（Ollama 场景必填） */
+    private String baseUrl;
+
+    /** 模型名称（传给提供者的实际模型标识） */
+    private String modelName;
+
+    /** 前端展示名称（如 "通义千问 14B"） */
+    private String displayName;
+
+    /** API Key（云端模型场景必填） */
+    private String apiKey;
+
+    /** ReAct 循环最大迭代次数，默认 20 */
+    private int maxIters = 20;
+}
