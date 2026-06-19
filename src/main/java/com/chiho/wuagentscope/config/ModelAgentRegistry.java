@@ -6,6 +6,7 @@ import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
+import io.agentscope.core.skill.DynamicSkillMiddleware;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
@@ -52,14 +53,17 @@ public class ModelAgentRegistry {
     private final Toolkit toolkit;
     private final ContextTrimMiddleware contextTrimMiddleware;
     private final OtelTracingMiddleware otelTracingMiddleware;
+    private final DynamicSkillMiddleware dynamicSkillMiddleware;
 
     public ModelAgentRegistry(AgentStateStore agentStateStore, Toolkit toolkit,
                               ContextTrimMiddleware contextTrimMiddleware,
-                              OtelTracingMiddleware otelTracingMiddleware) {
+                              OtelTracingMiddleware otelTracingMiddleware,
+                              DynamicSkillMiddleware dynamicSkillMiddleware) {
         this.agentStateStore = agentStateStore;
         this.toolkit = toolkit;
         this.contextTrimMiddleware = contextTrimMiddleware;
         this.otelTracingMiddleware = otelTracingMiddleware;
+        this.dynamicSkillMiddleware = dynamicSkillMiddleware;
     }
 
     @PostConstruct
@@ -80,6 +84,7 @@ public class ModelAgentRegistry {
                         .toolkit(toolkit)
                         .middleware(contextTrimMiddleware)
                         .middleware(otelTracingMiddleware)
+                        .middleware(dynamicSkillMiddleware)
                         .maxIters(config.getMaxIters())
                         .build();
                 agentMap.put(config.getId(), agent);

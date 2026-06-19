@@ -5,15 +5,20 @@ import com.chiho.wuagentscope.tools.TimeTool;
 import com.chiho.wuagentscope.tools.TokenUsageTool;
 import com.chiho.wuagentscope.tools.WebReaderTool;
 import com.chiho.wuagentscope.tools.WebSearchTool;
+import io.agentscope.core.skill.DynamicSkillMiddleware;
+import io.agentscope.core.skill.repository.FileSystemSkillRepository;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.mysql.state.MysqlAgentStateStore;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.context.annotation.Profile;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * AgentScope 核心配置
@@ -96,6 +101,43 @@ public class AgentScopeConfig {
         toolkit.registerTool(webReaderTool);
         toolkit.registerTool(tokenUsageTool);
         return toolkit;
+    }
+
+    /**
+     * 配置 Skill 文件系统仓库
+     * <p>
+     * 从项目根目录下的 skills/ 目录加载 Skill。
+     * 每个子目录包含一个 SKILL.md 文件即为一个 Skill。
+     * 支持热加载：DynamicSkillMiddleware 会监听文件变化并自动重新加载。
+     */
+    @Bean
+    public FileSystemSkillRepository skillRepository(
+            @Value("${agentscope.skills.dir:skills}") String skillsDir) throws IOException {
+        Path skillsPath = Path.of(skillsDir);
+        // 如果是相对路径，基于项目根目录解析
+        if (!skillsPath.isAbsolute()) {
+            skillsPath = Path.of(System.getProperty("user.dir")).resolve(skillsDir);
+        }
+        return new FileSystemSkillRepository(skillsPath, false);
+    }
+
+    /**
+     * 配置动态 Skill 中间件
+     * <p>
+     * DynamicSkillMiddleware 实现了 MiddlewareBase，在 onSystemPrompt 阶段
+     * 将 Skill 内容注入到系统提示词中。
+     * <p>
+     * 工作流程：
+     * 1. 从 FileSystemSkillRepository 加载所有 Skill
+     * 2. 计算 Skill 内容签名，变化时重新加载
+     * 3. 将 Skill 描述注入 system prompt
+     * 4. 将 Skill 绑定的工具注册到 Toolkit
+     */
+    @Bean
+    public DynamicSkillMiddleware dynamicSkillMiddleware(
+            FileSystemSkillRepository skillRepository, Toolkit toolkit) {
+        return new DynamicSkillMiddleware(
+                java.util.List.of(skillRepository), toolkit);
     }
 
 }

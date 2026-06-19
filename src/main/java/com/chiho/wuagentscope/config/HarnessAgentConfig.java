@@ -9,6 +9,7 @@ import com.chiho.wuagentscope.tools.WebSearchTool;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
 import io.agentscope.core.model.ToolSchema;
+import io.agentscope.core.skill.repository.FileSystemSkillRepository;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
@@ -116,6 +117,19 @@ public class HarnessAgentConfig {
         return toolkit;
     }
 
+    /**
+     * 配置 Skill 文件系统仓库（harness 模式）
+     */
+    @Bean
+    public FileSystemSkillRepository harnessSkillRepository(
+            @Value("${agentscope.skills.dir:skills}") String skillsDir) throws java.io.IOException {
+        java.nio.file.Path skillsPath = java.nio.file.Path.of(skillsDir);
+        if (!skillsPath.isAbsolute()) {
+            skillsPath = java.nio.file.Path.of(System.getProperty("user.dir")).resolve(skillsDir);
+        }
+        return new FileSystemSkillRepository(skillsPath, false);
+    }
+
     // ==================== HarnessAgent 核心配置 ====================
 
     /**
@@ -142,7 +156,8 @@ public class HarnessAgentConfig {
             AgentStateStore harnessStateStore,
             Toolkit harnessToolkit,
             ContextTrimMiddleware contextTrimMiddleware,
-            OtelTracingMiddleware otelTracingMiddleware) {
+            OtelTracingMiddleware otelTracingMiddleware,
+            FileSystemSkillRepository harnessSkillRepository) {
 
         return HarnessAgent.builder()
                 // ========== 基础配置（与 ReActAgent 一致） ==========
@@ -209,12 +224,14 @@ public class HarnessAgentConfig {
                 // 设置 Agent 的工作目录（用于 Plan 文件等）
                 .workspace(Path.of(System.getProperty("java.io.tmpdir"), "agent-workspace"))
 
+                // ========== Skill 配置 ==========
+                .skillRepository(harnessSkillRepository)
+                .skillsEnabled(true)
+
                 // ========== 禁用不需要的模块 ==========
                 .disableFilesystemTools()    // 无代码编辑需求
                 .disableShellTool()          // 安全考虑
                 .disableDynamicSubagents()   // 使用静态声明的子 Agent
-                .disableDynamicSkills()      // 暂不需要动态 Skill
-                .disableDefaultWorkspaceSkills()
                 .disableMemoryTools()        // 禁用记忆工具（MemoryFlushManager 有 NPE bug）
                 .disableMemoryHooks()        // 禁用记忆中间件（同上）
 

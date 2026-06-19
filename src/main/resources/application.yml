@@ -42,27 +42,34 @@ mybatis-plus:
 agentscope:
   # 多模型配置
   models:
-    default-model: qwen3:14b
+    default-model: qwen3.5:9b
     available:
+      - id: qwen3.5:9b
+        provider: ollama
+        base-url: http://localhost:11434
+        model-name: qwen3.5:9b
+        display-name: "通义千问3.5 9B（256k）"
+        max-iters: 20
+        capabilities: [text, vision]
       - id: qwen3:14b
         provider: ollama
         base-url: http://localhost:11434
         model-name: qwen3:14b
-        display-name: "通义千问 14B"
+        display-name: "通义千问3 14B（40k）"
         max-iters: 20
         capabilities: [text]
       - id: qwen3-vl:8b
         provider: ollama
         base-url: http://localhost:11434
         model-name: qwen3-vl:8b
-        display-name: "通义千问 VL 8B (视觉)"
+        display-name: "通义千问3 VL 8B (视觉)"
         max-iters: 20
         capabilities: [text, vision]
-      - id: mfdoom/deepseek-v2-tool-calling:latest
+      - id: deepseek-v2-56k
         provider: ollama
         base-url: http://localhost:11434
-        model-name: mfdoom/deepseek-v2-tool-calling:latest
-        display-name: "DeepSeek V2"
+        model-name: deepseek-v2-56k
+        display-name: "DeepSeek V2（56k）"
         max-iters: 20
         capabilities: [text]
       - id: deepseek-r1:14b
@@ -74,10 +81,14 @@ agentscope:
         capabilities: [text]
   # 会话状态存储：MysqlAgentStateStore（自动建表，无需额外配置）
 
+  skills:
+    dir: skills
+
 # Agent 上下文截断配置
 agent:
   context:
     max-rounds: 20  # 保留最近 20 轮对话，超出部分截断（MySQL 中仍保留完整历史）
+    image-keep-rounds: 2  # 保留最近 2 轮图片，更早的消息只保留文字（避免图片撑爆上下文）
 
 # OpenTelemetry 配置
 otel:
