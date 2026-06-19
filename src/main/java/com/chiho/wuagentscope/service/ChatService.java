@@ -3,14 +3,21 @@ package com.chiho.wuagentscope.service;
 import com.chiho.wuagentscope.config.ModelAgentRegistry;
 import com.chiho.wuagentscope.common.exception.BusinessException;
 import com.chiho.wuagentscope.common.exception.ErrorCode;
+import com.chiho.wuagentscope.model.ImageData;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.AgentEventType;
 import io.agentscope.core.event.TextBlockDeltaEvent;
+import io.agentscope.core.message.Base64Source;
+import io.agentscope.core.message.ContentBlock;
+import io.agentscope.core.message.ImageBlock;
+import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.URLSource;
 import io.agentscope.core.message.UserMessage;
 import jakarta.annotation.Resource;
 
+import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -44,10 +51,7 @@ public class ChatService {
     private ObservabilityEventSink observabilityEventSink;
 
     /**
-     * 流式聊天（SSE）
-     * <p>
-     * 调用 streamEvents() 获取实时事件流，过滤出文本增量事件（TEXT_BLOCK_DELTA），
-     * 将 delta 片段逐个推送给前端。
+     * 流式聊天（SSE）—— 纯文本
      *
      * @param userId    用户ID
      * @param sessionId 会话ID（相同 ID 自动恢复历史对话）
@@ -56,10 +60,27 @@ public class ChatService {
      * @return 文本增量的 Flux 流，每个元素是一小段文本
      */
     public Flux<String> chatStream(Long userId, String sessionId, String message, String modelId) {
+        return chatStream(userId, sessionId, message, modelId, null, null);
+    }
+
+    /**
+     * 流式聊天（SSE）—— 支持多模态（文本 + 图片）
+     *
+     * @param userId    用户ID
+     * @param sessionId 会话ID
+     * @param message   用户消息（可为空）
+     * @param modelId   模型ID
+     * @param imageUrls 图片URL列表（可选）
+     * @param images    Base64 图片列表（可选）
+     * @return 文本增量的 Flux 流
+     */
+    public Flux<String> chatStream(Long userId, String sessionId, String message,
+                                   String modelId, List<String> imageUrls, List<ImageData> images) {
         ReActAgent agent = modelRegistry.getAgent(modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
+        UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
-        Flux<AgentEvent> rawEvents = agent.streamEvents(List.of(new UserMessage(message)), ctx);
+        Flux<AgentEvent> rawEvents = agent.streamEvents(List.of(userMsg), ctx);
         Flux<AgentEvent> observedEvents = observabilityEventSink.wrapStream(rawEvents, userId, sessionId, modelId);
 
         return observedEvents
@@ -70,44 +91,98 @@ public class ChatService {
 
     /**
      * 流式聊天（SSE），返回原始 AgentEvent 事件流
-     *
-     * @param userId    用户ID
-     * @param sessionId 会话ID
-     * @param message   用户消息
-     * @param modelId   模型ID（可选）
-     * @return AgentEvent 事件流
      */
     public Flux<AgentEvent> chatStreamWithEvents(Long userId, String sessionId, String message, String modelId) {
+        return chatStreamWithEvents(userId, sessionId, message, modelId, null, null);
+    }
+
+    /**
+     * 流式聊天（SSE），返回原始 AgentEvent 事件流 —— 支持多模态
+     */
+    public Flux<AgentEvent> chatStreamWithEvents(Long userId, String sessionId, String message,
+                                                  String modelId, List<String> imageUrls, List<ImageData> images) {
         ReActAgent agent = modelRegistry.getAgent(modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
+        UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
-        Flux<AgentEvent> rawEvents = agent.streamEvents(List.of(new UserMessage(message)), ctx);
+        Flux<AgentEvent> rawEvents = agent.streamEvents(List.of(userMsg), ctx);
 
         return observabilityEventSink.wrapStream(rawEvents, userId, sessionId, modelId)
                 .doOnError(e -> log.error("流式聊天异常: userId={}, sessionId={}, modelId={}", userId, sessionId, modelId, e));
     }
 
     /**
-     * 同步聊天（非流式）
-     *
-     * @param userId    用户ID
-     * @param sessionId 会话ID
-     * @param message   用户消息
-     * @param modelId   模型ID（可选）
-     * @return Agent 的完整回复文本
+     * 同步聊天（非流式）—— 纯文本
      */
     public String chat(Long userId, String sessionId, String message, String modelId) {
+        return chat(userId, sessionId, message, modelId, null, null);
+    }
+
+    /**
+     * 同步聊天（非流式）—— 支持多模态
+     */
+    public String chat(Long userId, String sessionId, String message,
+                       String modelId, List<String> imageUrls, List<ImageData> images) {
         ReActAgent agent = modelRegistry.getAgent(modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
+        UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
         try {
-            return agent.call(List.of(new UserMessage(message)), ctx)
+            return agent.call(List.of(userMsg), ctx)
                     .block()
                     .getTextContent();
         } catch (Exception e) {
             log.error("同步聊天异常: userId={}, sessionId={}, modelId={}", userId, sessionId, modelId, e);
             throw new BusinessException(ErrorCode.AGENT_RUN_FAILED, "AI助手响应失败: " + e.getMessage());
         }
+    }
+
+    // ==================== 内部方法 ====================
+
+    /**
+     * 构建多模态 UserMessage
+     * <p>
+     * 将文本 + 图片URL + Base64图片 统一转换为 AgentScope 的 ContentBlock 列表。
+     * AgentScope 的 OllamaChatFormatter 会自动将 ImageBlock 转为 Ollama API 所需的 Base64 images 字段。
+     */
+    private UserMessage buildUserMessage(String message, List<String> imageUrls, List<ImageData> images) {
+        // 纯文本快捷路径
+        boolean hasImages = (imageUrls != null && !imageUrls.isEmpty()) || (images != null && !images.isEmpty());
+        if (!hasImages) {
+            return new UserMessage(message != null ? message : "");
+        }
+
+        // 多模态：构建 ContentBlock 列表
+        List<ContentBlock> blocks = new ArrayList<>();
+
+        if (message != null && !message.isBlank()) {
+            blocks.add(TextBlock.builder().text(message).build());
+        }
+
+        if (imageUrls != null) {
+            for (String url : imageUrls) {
+                if (url != null && !url.isBlank()) {
+                    blocks.add(ImageBlock.builder()
+                            .source(URLSource.builder().url(url).build())
+                            .build());
+                }
+            }
+        }
+
+        if (images != null) {
+            for (ImageData img : images) {
+                if (img != null && img.getBase64() != null) {
+                    blocks.add(ImageBlock.builder()
+                            .source(Base64Source.builder()
+                                    .mediaType(img.getMimeType() != null ? img.getMimeType() : "image/png")
+                                    .data(img.getBase64())
+                                    .build())
+                            .build());
+                }
+            }
+        }
+
+        return new UserMessage(blocks);
     }
 
     private RuntimeContext buildContext(Long userId, String sessionId) {

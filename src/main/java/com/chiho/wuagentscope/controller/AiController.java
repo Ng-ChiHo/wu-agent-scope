@@ -5,6 +5,7 @@ import com.chiho.wuagentscope.common.exception.BusinessException;
 import com.chiho.wuagentscope.common.exception.ErrorCode;
 import com.chiho.wuagentscope.config.ModelAgentRegistry;
 import com.chiho.wuagentscope.config.ModelConfig;
+import com.chiho.wuagentscope.model.ChatRequest;
 import com.chiho.wuagentscope.service.ChatConversationService;
 import com.chiho.wuagentscope.service.ChatService;
 import com.chiho.wuagentscope.service.UserService;
@@ -40,7 +41,7 @@ public class AiController {
     private ModelAgentRegistry modelRegistry;
 
     /**
-     * 通用 AI 聊天助手（SSE 流式输出）
+     * 通用 AI 聊天助手（SSE 流式输出）—— GET 方式（纯文本，向后兼容）
      *
      * @param message 用户消息
      * @param chatId  会话ID（前端生成的唯一标识，相同 ID 恢复历史对话）
@@ -72,13 +73,36 @@ public class AiController {
     }
 
     /**
-     * 通用 AI 聊天助手（同步调用）
+     * 通用 AI 聊天助手（SSE 流式输出）—— POST 方式（支持多模态：文本 + 图片）
      *
-     * @param message 用户消息
-     * @param chatId  会话ID
-     * @param token   用户认证 token
-     * @param modelId 模型ID（可选）
-     * @return 统一返回格式的 AI 回复
+     * @param request 聊天请求体（包含文本、图片URL、Base64图片等）
+     * @return SSE 流式响应
+     */
+    @PostMapping("/chat/common/sse")
+    public SseEmitter doChatCommonSsePost(@RequestBody ChatRequest request) {
+        Long userId = validateToken(request.getToken());
+        conversationService.getOrCreateConversation(userId, request.getChatId(),
+                request.getMessage(), request.getModelId());
+
+        SseEmitter emitter = new SseEmitter(300_000L);
+        chatService.chatStream(userId, request.getChatId(), request.getMessage(),
+                        request.getModelId(), request.getImageUrls(), request.getImages())
+                .subscribe(
+                        chunk -> {
+                            try {
+                                emitter.send(chunk);
+                            } catch (IOException e) {
+                                emitter.completeWithError(e);
+                            }
+                        },
+                        emitter::completeWithError,
+                        emitter::complete
+                );
+        return emitter;
+    }
+
+    /**
+     * 通用 AI 聊天助手（同步调用）—— GET 方式（纯文本，向后兼容）
      */
     @GetMapping("/chat/common")
     public R<String> doChatCommon(String message, String chatId,
@@ -87,6 +111,19 @@ public class AiController {
         Long userId = validateToken(token);
         conversationService.getOrCreateConversation(userId, chatId, message, modelId);
         String response = chatService.chat(userId, chatId, message, modelId);
+        return R.success(response);
+    }
+
+    /**
+     * 通用 AI 聊天助手（同步调用）—— POST 方式（支持多模态）
+     */
+    @PostMapping("/chat/common")
+    public R<String> doChatCommonPost(@RequestBody ChatRequest request) {
+        Long userId = validateToken(request.getToken());
+        conversationService.getOrCreateConversation(userId, request.getChatId(),
+                request.getMessage(), request.getModelId());
+        String response = chatService.chat(userId, request.getChatId(), request.getMessage(),
+                request.getModelId(), request.getImageUrls(), request.getImages());
         return R.success(response);
     }
 

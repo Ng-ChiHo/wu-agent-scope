@@ -2,6 +2,8 @@ package com.chiho.wuagentscope.config;
 
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 模型配置属性
  * <p>
@@ -31,4 +33,7 @@ public class ModelConfig {
 
     /** ReAct 循环最大迭代次数，默认 20 */
     private int maxIters = 20;
+
+    /** 模型能力标签（如 text / vision / audio），前端据此决定是否显示图片上传 */
+    private List<String> capabilities;
 }

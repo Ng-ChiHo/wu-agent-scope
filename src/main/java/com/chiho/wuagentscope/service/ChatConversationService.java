@@ -9,7 +9,11 @@ import com.chiho.wuagentscope.mapper.AgentCallLogMapper;
 import com.chiho.wuagentscope.mapper.ChatConversationMapper;
 import com.chiho.wuagentscope.model.ConversationVO;
 import com.chiho.wuagentscope.model.MessageVO;
+import io.agentscope.core.message.Base64Source;
+import io.agentscope.core.message.ImageBlock;
 import io.agentscope.core.message.Msg;
+import io.agentscope.core.message.Source;
+import io.agentscope.core.message.URLSource;
 import io.agentscope.core.state.AgentState;
 import io.agentscope.core.state.AgentStateStore;
 import lombok.RequiredArgsConstructor;
@@ -209,6 +213,25 @@ public class ChatConversationService {
         vo.setRole(msg.getRole().name().toLowerCase());
         vo.setContent(msg.getTextContent());
         vo.setTimestamp(parseTimestamp(msg.getTimestamp()));
+
+        // 提取图片内容
+        List<ImageBlock> imageBlocks = msg.getContentBlocks(ImageBlock.class);
+        if (imageBlocks != null && !imageBlocks.isEmpty()) {
+            List<String> urls = new ArrayList<>();
+            for (ImageBlock block : imageBlocks) {
+                Source source = block.getSource();
+                if (source instanceof URLSource urlSource) {
+                    urls.add(urlSource.getUrl());
+                } else if (source instanceof Base64Source base64Source) {
+                    // 转为 data URL，前端可直接用于 <img src>
+                    urls.add("data:" + base64Source.getMediaType() + ";base64," + base64Source.getData());
+                }
+            }
+            if (!urls.isEmpty()) {
+                vo.setImageUrls(urls);
+            }
+        }
+
         return vo;
     }
 
