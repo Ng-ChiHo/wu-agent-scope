@@ -252,9 +252,18 @@ public class ChatConversationService {
 
     /**
      * 从消息文本中提取图表数据 JSON（chartType 开头的 JSON 对象）
+     * 支持从 markdown 代码块（```json ... ```）中提取
      */
     private String extractChartData(String text) {
         if (text == null || text.isBlank()) return null;
+
+        // 先尝试从 markdown 代码块中提取 JSON
+        String codeBlockJson = extractJsonFromCodeBlock(text);
+        if (codeBlockJson != null) {
+            return codeBlockJson;
+        }
+
+        // 直接在文本中查找 {"chartType" 开头的 JSON
         int start = text.indexOf("{\"chartType\"");
         if (start < 0) start = text.indexOf("{\"charttype\"");
         if (start < 0) return null;
@@ -266,6 +275,41 @@ public class ChatConversationService {
                 String json = text.substring(start, i + 1);
                 return json.contains("echartsOption") ? json : null;
             }}
+        }
+        return null;
+    }
+
+    /**
+     * 从 markdown 代码块中提取包含 echartsOption 的 JSON
+     * 匹配 ```json ... ``` 或 ``` ... ``` 格式
+     */
+    private String extractJsonFromCodeBlock(String text) {
+        // 查找 ``` 开头的代码块
+        int blockStart = text.indexOf("```");
+        while (blockStart >= 0) {
+            // 跳过语言标识行（如 ```json）
+            int contentStart = text.indexOf('\n', blockStart);
+            if (contentStart < 0) break;
+            contentStart++;
+
+            // 查找结束的 ```
+            int blockEnd = text.indexOf("```", contentStart);
+            if (blockEnd < 0) break;
+
+            String blockContent = text.substring(contentStart, blockEnd).trim();
+
+            // 检查代码块内容是否包含 echartsOption
+            if (blockContent.contains("echartsOption") || blockContent.contains("chartType")) {
+                // 尝试解析为 JSON
+                try {
+                    cn.hutool.json.JSONUtil.parseObj(blockContent);
+                    return blockContent;
+                } catch (Exception ignored) {
+                    // 不是有效 JSON，继续查找下一个代码块
+                }
+            }
+
+            blockStart = text.indexOf("```", blockEnd + 3);
         }
         return null;
     }
