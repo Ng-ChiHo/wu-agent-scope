@@ -2,6 +2,7 @@ package com.chiho.wuagentscope.config;
 
 import com.chiho.wuagentscope.tools.ImageSearchTool;
 import com.chiho.wuagentscope.tools.ChartSuggestTool;
+import com.chiho.wuagentscope.tools.SchemaInspectorTool;
 import com.chiho.wuagentscope.tools.SqlExecuteTool;
 import com.chiho.wuagentscope.tools.TimeTool;
 import com.chiho.wuagentscope.tools.TokenUsageTool;
@@ -95,16 +96,21 @@ public class AgentScopeConfig {
     @Bean
     public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool,
                            WebSearchTool webSearchTool, WebReaderTool webReaderTool,
-                           TokenUsageTool tokenUsageTool, SqlExecuteTool sqlExecuteTool,
-                           ChartSuggestTool chartSuggestTool) {
+                           TokenUsageTool tokenUsageTool, SchemaInspectorTool schemaInspectorTool,
+                           SqlExecuteTool sqlExecuteTool, ChartSuggestTool chartSuggestTool) {
         Toolkit toolkit = new Toolkit();
-        toolkit.registerTool(timeTool);
-        toolkit.registerTool(imageSearchTool);
-        toolkit.registerTool(webSearchTool);
-        toolkit.registerTool(webReaderTool);
-        toolkit.registerTool(tokenUsageTool);
-        toolkit.registerTool(sqlExecuteTool);
-        toolkit.registerTool(chartSuggestTool);
+        toolkit.createToolGroup("general", "通用工具", true);
+        toolkit.createToolGroup("data", "数据分析工具", true);
+
+        toolkit.registration().tool(timeTool).group("general").apply();
+        toolkit.registration().tool(imageSearchTool).group("general").apply();
+        toolkit.registration().tool(webSearchTool).group("general").apply();
+        toolkit.registration().tool(webReaderTool).group("general").apply();
+        toolkit.registration().tool(tokenUsageTool).group("general").apply();
+
+        toolkit.registration().tool(schemaInspectorTool).group("data").apply();
+        toolkit.registration().tool(sqlExecuteTool).group("data").apply();
+        toolkit.registration().tool(chartSuggestTool).group("data").apply();
         return toolkit;
     }
 
