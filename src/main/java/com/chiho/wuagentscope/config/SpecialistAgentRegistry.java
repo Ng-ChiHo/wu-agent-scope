@@ -98,19 +98,16 @@ public class SpecialistAgentRegistry {
     }
 
     /**
-     * 构建数据分析师 Agent（仅 data + general 工具集）
+     * 构建数据分析师 Agent（共享 Toolkit，通过 system prompt 引导使用数据工具）
      */
     private ReActAgent buildDataAnalystAgent(String modelId) {
         OllamaChatModel model = modelRegistry.getModel(modelId);
-        // 复制一份 Toolkit 并限制为 general + data 工具组
-        Toolkit specialistToolkit = toolkit.copy();
-        specialistToolkit.setActiveGroups(List.of("general", "data"));
         return ReActAgent.builder()
                 .name("data-analyst")
                 .sysPrompt(DATA_ANALYST_PROMPT)
                 .model(model)
                 .stateStore(agentStateStore)
-                .toolkit(specialistToolkit)
+                .toolkit(toolkit)
                 .middleware(contextTrimMiddleware)
                 .middleware(otelTracingMiddleware)
                 .middleware(dynamicSkillMiddleware)
