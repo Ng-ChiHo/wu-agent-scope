@@ -1,9 +1,11 @@
 package com.chiho.wuagentscope.service;
 
 import com.chiho.wuagentscope.config.ModelAgentRegistry;
+import com.chiho.wuagentscope.config.SpecialistAgentRegistry;
 import com.chiho.wuagentscope.common.exception.BusinessException;
 import com.chiho.wuagentscope.common.exception.ErrorCode;
 import com.chiho.wuagentscope.model.ImageData;
+import com.chiho.wuagentscope.model.RouteResult;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEvent;
@@ -50,6 +52,12 @@ public class ChatService {
     @Resource
     private ObservabilityEventSink observabilityEventSink;
 
+    @Resource
+    private AgentRouterService routerService;
+
+    @Resource
+    private SpecialistAgentRegistry specialistAgentRegistry;
+
     /**
      * 流式聊天（SSE）—— 纯文本
      *
@@ -76,7 +84,9 @@ public class ChatService {
      */
     public Flux<String> chatStream(Long userId, String sessionId, String message,
                                    String modelId, List<String> imageUrls, List<ImageData> images) {
-        ReActAgent agent = modelRegistry.getAgent(modelId);
+        RouteResult route = routerService.route(message);
+        log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
+        ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
         UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
@@ -101,7 +111,9 @@ public class ChatService {
      */
     public Flux<AgentEvent> chatStreamWithEvents(Long userId, String sessionId, String message,
                                                   String modelId, List<String> imageUrls, List<ImageData> images) {
-        ReActAgent agent = modelRegistry.getAgent(modelId);
+        RouteResult route = routerService.route(message);
+        log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
+        ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
         UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
@@ -123,7 +135,9 @@ public class ChatService {
      */
     public String chat(Long userId, String sessionId, String message,
                        String modelId, List<String> imageUrls, List<ImageData> images) {
-        ReActAgent agent = modelRegistry.getAgent(modelId);
+        RouteResult route = routerService.route(message);
+        log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
+        ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
         UserMessage userMsg = buildUserMessage(message, imageUrls, images);
 
