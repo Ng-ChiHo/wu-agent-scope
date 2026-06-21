@@ -22,6 +22,8 @@ public enum ErrorCode {
     USER_INVALID_STATUS(40015, "用户已被禁用"),
     PASSWORD_ERROR(40016, "密码错误"),
     MODEL_NOT_FOUND(40020, "不支持的模型"),
+    SQL_EXECUTE_FORBIDDEN(40030, "SQL执行被禁止：仅支持SELECT查询"),
+    SQL_EXECUTE_TIMEOUT(40031, "SQL执行超时"),
 
     // 系统错误码 (500xx)
     SYSTEM_ERROR(50000, "系统异常"),

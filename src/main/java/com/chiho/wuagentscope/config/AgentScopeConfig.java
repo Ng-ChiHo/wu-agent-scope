@@ -1,6 +1,8 @@
 package com.chiho.wuagentscope.config;
 
 import com.chiho.wuagentscope.tools.ImageSearchTool;
+import com.chiho.wuagentscope.tools.ChartSuggestTool;
+import com.chiho.wuagentscope.tools.SqlExecuteTool;
 import com.chiho.wuagentscope.tools.TimeTool;
 import com.chiho.wuagentscope.tools.TokenUsageTool;
 import com.chiho.wuagentscope.tools.WebReaderTool;
@@ -93,13 +95,16 @@ public class AgentScopeConfig {
     @Bean
     public Toolkit toolkit(TimeTool timeTool, ImageSearchTool imageSearchTool,
                            WebSearchTool webSearchTool, WebReaderTool webReaderTool,
-                           TokenUsageTool tokenUsageTool) {
+                           TokenUsageTool tokenUsageTool, SqlExecuteTool sqlExecuteTool,
+                           ChartSuggestTool chartSuggestTool) {
         Toolkit toolkit = new Toolkit();
         toolkit.registerTool(timeTool);
         toolkit.registerTool(imageSearchTool);
         toolkit.registerTool(webSearchTool);
         toolkit.registerTool(webReaderTool);
         toolkit.registerTool(tokenUsageTool);
+        toolkit.registerTool(sqlExecuteTool);
+        toolkit.registerTool(chartSuggestTool);
         return toolkit;
     }
 
