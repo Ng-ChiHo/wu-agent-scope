@@ -212,6 +212,7 @@ public class ChatConversationService {
         MessageVO vo = new MessageVO();
         vo.setRole(msg.getRole().name().toLowerCase());
         vo.setContent(msg.getTextContent());
+        vo.setChartData(extractChartData(msg.getTextContent()));
         vo.setTimestamp(parseTimestamp(msg.getTimestamp()));
 
         // 提取图片内容
@@ -247,6 +248,26 @@ public class ChatConversationService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * 从消息文本中提取图表数据 JSON（chartType 开头的 JSON 对象）
+     */
+    private String extractChartData(String text) {
+        if (text == null || text.isBlank()) return null;
+        int start = text.indexOf("{\"chartType\"");
+        if (start < 0) start = text.indexOf("{\"charttype\"");
+        if (start < 0) return null;
+        int depth = 0;
+        for (int i = start; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') { depth--; if (depth == 0) {
+                String json = text.substring(start, i + 1);
+                return json.contains("echartsOption") ? json : null;
+            }}
+        }
+        return null;
     }
 
     /**

@@ -23,6 +23,9 @@ public class MessageVO {
     /** 消息关联的图片列表（URL 或 data:image/xxx;base64,... 格式） */
     private List<String> imageUrls;
 
+    /** 图表数据（ECharts option JSON，由 ChartSuggestTool 生成） */
+    private String chartData;
+
     /** 消息时间戳 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime timestamp;
