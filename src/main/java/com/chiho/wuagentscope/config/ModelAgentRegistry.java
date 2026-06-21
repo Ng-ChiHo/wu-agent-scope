@@ -100,6 +100,18 @@ public class ModelAgentRegistry {
     }
 
     /**
+     * 获取指定模型的 OllamaChatModel 实例（供 SpecialistAgentRegistry 构建专业 Agent）
+     */
+    public OllamaChatModel getModel(String modelId) {
+        String resolved = modelId != null ? modelId : defaultModel;
+        ModelConfig config = configMap.get(resolved);
+        if (config == null) {
+            throw new BusinessException(ErrorCode.MODEL_NOT_FOUND, "不支持的模型: " + resolved);
+        }
+        return createOllamaModel(config);
+    }
+
+    /**
      * 获取指定模型的 ReActAgent
      */
     public ReActAgent getAgent(String modelId) {
