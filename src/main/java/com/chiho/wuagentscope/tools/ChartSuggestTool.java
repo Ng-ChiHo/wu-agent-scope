@@ -110,10 +110,10 @@ public class ChartSuggestTool {
             // 6. 组装返回结果
             JSONObject result = new JSONObject();
             result.set("chartType", chartType);
-            result.set("title", title);
+            result.set("title", new JSONObject().set("text", title));
             result.set("echartsOption", echartsOption);
 
-            return result.toStringPretty();
+            return cn.hutool.json.JSONUtil.toJsonPrettyStr(result);
 
         } catch (Exception e) {
             log.error("图表配置生成失败: question={}", question, e);

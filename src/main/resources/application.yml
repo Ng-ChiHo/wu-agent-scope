@@ -62,21 +62,21 @@ agentscope:
         provider: ollama
         base-url: http://localhost:11434
         model-name: qwen3-vl:8b
-        display-name: "通义千问3 VL 8B (视觉)"
+        display-name: "通义千问3 VL 8B（视觉）"
         max-iters: 20
         capabilities: [text, vision]
+      - id: qwen2.5-coder:14b
+        provider: ollama
+        base-url: http://localhost:11434
+        model-name: qwen2.5-coder:14b
+        display-name: "通义千问2.5 Coder（编码）"
+        max-iters: 20
+        capabilities: [text]
       - id: deepseek-v2-56k
         provider: ollama
         base-url: http://localhost:11434
         model-name: deepseek-v2-56k
         display-name: "DeepSeek V2（56k）"
-        max-iters: 20
-        capabilities: [text]
-      - id: deepseek-r1:14b
-        provider: ollama
-        base-url: http://localhost:11434
-        model-name: deepseek-r1:14b
-        display-name: "DeepSeek R1"
         max-iters: 20
         capabilities: [text]
   # 会话状态存储：MysqlAgentStateStore（自动建表，无需额外配置）

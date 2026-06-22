@@ -77,7 +77,7 @@ public class SchemaInspectorTool {
                     return "数据库 " + DB_NAME + " 中没有找到任何用户表";
                 }
 
-                return tables.toStringPretty();
+                return cn.hutool.json.JSONUtil.toJsonPrettyStr(tables);
             }
         } catch (Exception e) {
             log.error("查询数据库表列表失败", e);
@@ -129,7 +129,7 @@ public class SchemaInspectorTool {
                 result.set("table", tableName);
                 result.set("columns", columns);
 
-                return result.toStringPretty();
+                return cn.hutool.json.JSONUtil.toJsonPrettyStr(result);
             }
         } catch (Exception e) {
             log.error("查询表结构失败: tableName={}", tableName, e);
