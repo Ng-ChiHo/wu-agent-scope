@@ -36,4 +36,18 @@ public class ModelConfig {
 
     /** 模型能力标签（如 text / vision / audio），前端据此决定是否显示图片上传 */
     private List<String> capabilities;
+
+    /**
+     * 思维链（thinking）模式配置。
+     * <p>
+     * 可选值：
+     * - disabled: 关闭 thinking，降低延迟（适合常规聊天）
+     * - enabled:  开启 thinking（默认值，适合复杂推理）
+     * - low:      低强度思考
+     * - medium:   中等思考
+     * - high:     深度思考
+     * <p>
+     * 不设置时，由 Ollama 模型自身决定（Qwen3 系列默认开启 thinking）。
+     */
+    private String think;
 }

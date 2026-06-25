@@ -11,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -94,7 +93,7 @@ public class SpecialistAgentRegistry {
      * 构建通用 Agent（全工具集），委托给 ModelAgentRegistry
      */
     private ReActAgent buildGeneralAgent(String modelId) {
-        return modelRegistry.getAgent(modelId);
+        return modelRegistry.getGeneralAgent(modelId);
     }
 
     /**

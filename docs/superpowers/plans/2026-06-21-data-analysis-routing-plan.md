@@ -1088,7 +1088,6 @@ import io.agentscope.core.skill.DynamicSkillMiddleware;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -1174,7 +1173,7 @@ public class SpecialistAgentRegistry {
 
     private ReActAgent buildGeneralAgent(OllamaChatModel model) {
         // 复用 ModelAgentRegistry 的通用 Agent 配置
-        return modelRegistry.getAgent(null);
+        return modelRegistry.getGeneralAgent(null);
     }
 
     private ReActAgent buildDataAnalystAgent(OllamaChatModel model) {

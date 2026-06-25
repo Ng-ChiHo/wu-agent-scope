@@ -16,6 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
+import io.agentscope.core.model.ollama.OllamaOptions;
+import io.agentscope.core.model.ollama.ThinkOption;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,8 +92,9 @@ public class ModelAgentRegistry {
                         .build();
                 agentMap.put(config.getId(), agent);
                 configMap.put(config.getId(), config);
-                log.info("注册模型: id={}, provider={}, modelName={}, maxIters={}",
-                        config.getId(), config.getProvider(), config.getModelName(), config.getMaxIters());
+                log.info("注册模型: id={}, provider={}, modelName={}, maxIters={}, think={}",
+                        config.getId(), config.getProvider(), config.getModelName(), config.getMaxIters(),
+                        config.getThink() != null ? config.getThink() : "default");
             } catch (Exception e) {
                 log.error("注册模型失败: id={}, error={}", config.getId(), e.getMessage(), e);
             }
@@ -114,7 +118,7 @@ public class ModelAgentRegistry {
     /**
      * 获取指定模型的 ReActAgent
      */
-    public ReActAgent getAgent(String modelId) {
+    public ReActAgent getGeneralAgent(String modelId) {
         String resolved = modelId != null ? modelId : defaultModel;
         ReActAgent agent = agentMap.get(resolved);
         if (agent == null) {
@@ -134,11 +138,40 @@ public class ModelAgentRegistry {
      * 创建 Ollama 模型实例
      */
     private OllamaChatModel createOllamaModel(ModelConfig config) {
-        return OllamaChatModel.builder()
+        OllamaChatModel.Builder builder = OllamaChatModel.builder()
                 .baseUrl(config.getBaseUrl())
                 .modelName(config.getModelName())
-                .formatter(new OllamaChatFormatter())
-                .build();
+                .formatter(new OllamaChatFormatter());
+
+        // 根据配置设置 thinking 模式
+        ThinkOption thinkOption = resolveThinkOption(config.getThink());
+        if (thinkOption != null) {
+            builder.defaultOptions(OllamaOptions.builder()
+                    .thinkOption(thinkOption)
+                    .build());
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 将配置字符串转换为 ThinkOption
+     */
+    private ThinkOption resolveThinkOption(String think) {
+        if (think == null || think.isBlank()) {
+            return null; // 不设置，由模型自身决定
+        }
+        return switch (think.toLowerCase()) {
+            case "disabled", "false", "off" -> ThinkOption.ThinkBoolean.DISABLED;
+            case "enabled", "true", "on" -> ThinkOption.ThinkBoolean.ENABLED;
+            case "low" -> ThinkOption.ThinkLevel.LOW;
+            case "medium" -> ThinkOption.ThinkLevel.MEDIUM;
+            case "high" -> ThinkOption.ThinkLevel.HIGH;
+            default -> {
+                log.warn("未知的 think 配置值: {}，忽略", think);
+                yield null;
+            }
+        };
     }
 
     /**

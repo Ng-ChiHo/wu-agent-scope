@@ -6,6 +6,8 @@ import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.message.UserMessage;
 import io.agentscope.core.model.OllamaChatModel;
+import io.agentscope.core.model.ollama.OllamaOptions;
+import io.agentscope.core.model.ollama.ThinkOption;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import jakarta.annotation.PostConstruct;
@@ -39,6 +41,8 @@ public class AgentRouterService {
             "只输出 JSON，不要输出其他内容：",
             "{\"route\": \"general\", \"confidence\": 0.95, \"reason\": \"用户在闲聊\"}");
 
+    private static final String ROUTER_MODEL_ID = "qwen3:1.7b";
+
     private static final double CONFIDENCE_THRESHOLD = 0.8;
 
     private static final String ROUTER_AGENT_NAME = "router-classifier";
@@ -57,8 +61,11 @@ public class AgentRouterService {
     public void init() {
         OllamaChatModel model = OllamaChatModel.builder()
                 .baseUrl("http://localhost:11434")
-                .modelName("qwen3-vl:8b")
+                .modelName(ROUTER_MODEL_ID)
                 .formatter(new OllamaChatFormatter())
+                .defaultOptions(OllamaOptions.builder()
+                        .thinkOption(ThinkOption.ThinkBoolean.DISABLED)
+                        .build())
                 .build();
 
         routerAgent = ReActAgent.builder()
@@ -70,7 +77,7 @@ public class AgentRouterService {
                 .maxIters(1)
                 .build();
 
-        log.info("路由器 Agent 初始化完成: model=qwen3-vl:8b, confidenceThreshold={}", CONFIDENCE_THRESHOLD);
+        log.info("路由器 Agent 初始化完成: model={}, confidenceThreshold={}", ROUTER_MODEL_ID, CONFIDENCE_THRESHOLD);
     }
 
     /**
