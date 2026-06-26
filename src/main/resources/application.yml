@@ -90,8 +90,11 @@ agentscope:
 # Agent 上下文截断配置
 agent:
   context:
-    max-rounds: 20  # 保留最近 20 轮对话，超出部分截断（MySQL 中仍保留完整历史）
+    max-rounds: 20  # 保留最近 10 轮对话（含 RAG 检索结果，实际 token 较多），超出部分截断
     image-keep-rounds: 2  # 保留最近 2 轮图片，更早的消息只保留文字（避免图片撑爆上下文）
+  tool-result:
+    max-chars: 2000    # 工具返回超过 2000 字符时截断
+    preview-chars: 300  # 截断后保留前后各 300 字符
 
 # OpenTelemetry 配置
 otel:
@@ -113,6 +116,13 @@ jina:
     timeout: 30000
     api-key:           # 可选，填写后免费额度更高
     max-length: 8000   # 返回内容最大字符数，避免撑爆 LLM 上下文
+
+# RAG 配置（基于 AgentScope 官方 agentscope-extensions-rag-simple 模块）
+rag:
+  embedding:
+    base-url: http://localhost:11434
+    model: mxbai-embed-large   # 1024维，精度高；备选 nomic-embed-text（768维，速度快）
+    dimensions: 1024
 
 # 日志级别
 logging:

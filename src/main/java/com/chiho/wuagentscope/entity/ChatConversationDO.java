@@ -36,6 +36,14 @@ public class ChatConversationDO {
     @TableField("last_model_id")
     private String lastModelId;
 
+    /** 最近一次路由类型（如 general、car_advisor、data_analyst） */
+    @TableField("last_route")
+    private String lastRoute;
+
+    /** 最近一次路由时的用户消息（用于多轮对话路由上下文） */
+    @TableField("last_route_msg")
+    private String lastRouteMsg;
+
     /** 创建时间 */
     @TableField("create_time")
     private LocalDateTime createTime;

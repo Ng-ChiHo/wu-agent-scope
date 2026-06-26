@@ -111,6 +111,19 @@ public class AgentScopeConfig {
     }
 
     /**
+     * 购车顾问专用工具集（极简版）
+     * <p>
+     * RAG 通过 GenericRAGHook 自动检索，无需注册 retrieve_knowledge 工具。
+     * 只保留 TimeTool 供 LLM 获取时间。
+     */
+    @Bean("carAdvisorToolkit")
+    public Toolkit carAdvisorToolkit(TimeTool timeTool) {
+        Toolkit toolkit = new Toolkit();
+        toolkit.registerTool(timeTool);
+        return toolkit;
+    }
+
+    /**
      * 配置 Skill 文件系统仓库
      * <p>
      * 从项目根目录下的 skills/ 目录加载 Skill。

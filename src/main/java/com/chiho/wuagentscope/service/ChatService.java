@@ -84,7 +84,7 @@ public class ChatService {
      */
     public Flux<String> chatStream(Long userId, String sessionId, String message,
                                    String modelId, List<String> imageUrls, List<ImageData> images) {
-        RouteResult route = routerService.route(message);
+        RouteResult route = routerService.route(message, sessionId);
         log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
         ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
@@ -111,7 +111,7 @@ public class ChatService {
      */
     public Flux<AgentEvent> chatStreamWithEvents(Long userId, String sessionId, String message,
                                                   String modelId, List<String> imageUrls, List<ImageData> images) {
-        RouteResult route = routerService.route(message);
+        RouteResult route = routerService.route(message, sessionId);
         log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
         ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);
@@ -135,7 +135,7 @@ public class ChatService {
      */
     public String chat(Long userId, String sessionId, String message,
                        String modelId, List<String> imageUrls, List<ImageData> images) {
-        RouteResult route = routerService.route(message);
+        RouteResult route = routerService.route(message, sessionId);
         log.info("路由结果: userId={}, route={}, confidence={}", userId, route.route(), route.confidence());
         ReActAgent agent = specialistAgentRegistry.getAgent(route.route(), modelId);
         RuntimeContext ctx = buildContext(userId, sessionId);

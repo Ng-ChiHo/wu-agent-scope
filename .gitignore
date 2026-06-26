@@ -10,6 +10,7 @@ tmp/
 .agentscope
 .claude
 CLAUDE.md
+document/
 
 ### STS ###
 .apt_generated

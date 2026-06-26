@@ -9,6 +9,7 @@ import com.chiho.wuagentscope.tools.TimeTool;
 import com.chiho.wuagentscope.tools.TokenUsageTool;
 import com.chiho.wuagentscope.tools.WebReaderTool;
 import com.chiho.wuagentscope.tools.WebSearchTool;
+import io.agentscope.core.rag.KnowledgeRetrievalTools;
 import io.agentscope.core.formatter.ollama.OllamaChatFormatter;
 import io.agentscope.core.model.OllamaChatModel;
 import io.agentscope.core.model.ToolSchema;
@@ -111,7 +112,8 @@ public class HarnessAgentConfig {
     public Toolkit harnessToolkit(TimeTool timeTool, ImageSearchTool imageSearchTool,
                                   WebSearchTool webSearchTool, WebReaderTool webReaderTool,
                                   TokenUsageTool tokenUsageTool, SchemaInspectorTool schemaInspectorTool,
-                                  SqlExecuteTool sqlExecuteTool, ChartSuggestTool chartSuggestTool) {
+                                  SqlExecuteTool sqlExecuteTool, ChartSuggestTool chartSuggestTool,
+                                  KnowledgeRetrievalTools knowledgeRetrievalTools) {
         Toolkit toolkit = new Toolkit();
         toolkit.registerTool(timeTool);
         toolkit.registerTool(imageSearchTool);
@@ -121,6 +123,8 @@ public class HarnessAgentConfig {
         toolkit.registerTool(schemaInspectorTool);
         toolkit.registerTool(sqlExecuteTool);
         toolkit.registerTool(chartSuggestTool);
+        // RAG 知识库检索工具（AGENTIC 模式）
+        toolkit.registerTool(knowledgeRetrievalTools);
         return toolkit;
     }
 

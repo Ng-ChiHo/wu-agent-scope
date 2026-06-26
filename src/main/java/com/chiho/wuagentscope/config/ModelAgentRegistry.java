@@ -143,7 +143,8 @@ public class ModelAgentRegistry {
                 .modelName(config.getModelName())
                 .formatter(new OllamaChatFormatter());
 
-        // 根据配置设置 thinking 模式
+        // Ollama 参数（num_ctx、num_predict）通过 Modelfile 在 Ollama 端设置，
+        // 不在代码中覆盖，避免 AgentScope 传递 -1 等无效值导致截断。
         ThinkOption thinkOption = resolveThinkOption(config.getThink());
         if (thinkOption != null) {
             builder.defaultOptions(OllamaOptions.builder()

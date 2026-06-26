@@ -1,13 +1,16 @@
 package com.chiho.wuagentscope.config;
 
 import com.chiho.wuagentscope.middleware.ContextTrimMiddleware;
+import com.chiho.wuagentscope.middleware.ToolResultTrimMiddleware;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.model.OllamaChatModel;
+import io.agentscope.core.rag.GenericRAGHook;
 import io.agentscope.core.skill.DynamicSkillMiddleware;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tracing.OtelTracingMiddleware;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
@@ -44,12 +47,36 @@ public class SpecialistAgentRegistry {
             "- 图表类型要根据数据特征合理选择",
             "- 如果用户的问题不涉及数据，直接用中文回答");
 
+    /** 购车顾问系统提示词 */
+    private static final String CAR_ADVISOR_PROMPT = String.join("\n",
+            "你是一位专业购车顾问，拥有丰富的汽车知识和选车经验。专注汽车选购、车型评测、购车避坑、用车指导全场景服务。",
+            "",
+            "系统已自动为你检索购车知识库，检索结果以 <retrieved_knowledge> 标签注入。",
+            "你必须优先基于检索结果中的专业数据为用户推荐车型，不要忽略检索结果。",
+            "",
+            "## 回答规范",
+            "- 推荐车型时列出：车型名称、价格区间、核心优势、适合场景",
+            "- 多款车型对比时用分点格式，便于阅读",
+            "- 涉及预算时明确落地价范围",
+            "- 涉及动力类型（燃油/混动/纯电）时说明各自优劣",
+            "- 回答风格通俗接地气，少堆砌专业参数，用大白话解读优缺点、适配场景、潜在通病与购车陷阱，客观中立、不吹不黑、帮用户理性决策",
+            "- 用户需求模糊时，主动极简引导询问预算、用途、车型、动力、品牌偏好，不敷衍、不推荐冷门杂牌车型，坚守专业靠谱、省心避坑的顾问定位",
+            "",
+            "## 禁止事项",
+            "- 不要忽略检索结果中的推荐数据",
+            "- 不要凭记忆编造车型推荐数据",
+            "- 不要忽略用户的具体预算和用途需求",
+            "- 不要推荐已停产或信息不确定的车型");
+
     private final ModelAgentRegistry modelRegistry;
     private final AgentStateStore agentStateStore;
     private final Toolkit toolkit;
+    private final Toolkit carAdvisorToolkit;
     private final ContextTrimMiddleware contextTrimMiddleware;
     private final OtelTracingMiddleware otelTracingMiddleware;
     private final DynamicSkillMiddleware dynamicSkillMiddleware;
+    private final GenericRAGHook genericRAGHook;
+    private final ToolResultTrimMiddleware toolResultTrimMiddleware;
 
     /** 路由+模型维度的 Agent 缓存，key = "route:modelId" */
     private final ConcurrentHashMap<String, ReActAgent> agentCache = new ConcurrentHashMap<>();
@@ -57,15 +84,21 @@ public class SpecialistAgentRegistry {
     public SpecialistAgentRegistry(ModelAgentRegistry modelRegistry,
                                    AgentStateStore agentStateStore,
                                    Toolkit toolkit,
+                                   @Qualifier("carAdvisorToolkit") Toolkit carAdvisorToolkit,
                                    ContextTrimMiddleware contextTrimMiddleware,
                                    OtelTracingMiddleware otelTracingMiddleware,
-                                   DynamicSkillMiddleware dynamicSkillMiddleware) {
+                                   DynamicSkillMiddleware dynamicSkillMiddleware,
+                                   GenericRAGHook genericRAGHook,
+                                   ToolResultTrimMiddleware toolResultTrimMiddleware) {
         this.modelRegistry = modelRegistry;
         this.agentStateStore = agentStateStore;
         this.toolkit = toolkit;
+        this.carAdvisorToolkit = carAdvisorToolkit;
         this.contextTrimMiddleware = contextTrimMiddleware;
         this.otelTracingMiddleware = otelTracingMiddleware;
         this.dynamicSkillMiddleware = dynamicSkillMiddleware;
+        this.genericRAGHook = genericRAGHook;
+        this.toolResultTrimMiddleware = toolResultTrimMiddleware;
     }
 
     /**
@@ -83,7 +116,8 @@ public class SpecialistAgentRegistry {
         return agentCache.computeIfAbsent(cacheKey, key -> {
             log.info("构建专业 Agent: route={}, modelId={}", route, resolvedModel);
             return switch (route) {
-                case "data-analyst" -> buildDataAnalystAgent(resolvedModel);
+                case "data_analyst" -> buildDataAnalystAgent(resolvedModel);
+                case "car_advisor" -> buildCarAdvisorAgent(resolvedModel);
                 default -> buildGeneralAgent(resolvedModel);
             };
         });
@@ -111,6 +145,25 @@ public class SpecialistAgentRegistry {
                 .middleware(otelTracingMiddleware)
                 .middleware(dynamicSkillMiddleware)
                 .maxIters(20)
+                .build();
+    }
+
+    /**
+     * 构建购车顾问 Agent（精简工具集 + GenericRAGHook 自动检索 + 工具结果截断）
+     */
+    private ReActAgent buildCarAdvisorAgent(String modelId) {
+        OllamaChatModel model = modelRegistry.getModel(modelId);
+        return ReActAgent.builder()
+                .name("car-advisor")
+                .sysPrompt(CAR_ADVISOR_PROMPT)
+                .model(model)
+                .stateStore(agentStateStore)
+                .toolkit(carAdvisorToolkit)        // 精简工具集：只有 retrieve_knowledge
+                .hook(genericRAGHook)              // 自动检索知识库
+                .middleware(contextTrimMiddleware)
+                .middleware(toolResultTrimMiddleware) // 工具结果截断
+                .middleware(otelTracingMiddleware)
+                .maxIters(10)                       // 限制 ReAct 迭代次数
                 .build();
     }
 }

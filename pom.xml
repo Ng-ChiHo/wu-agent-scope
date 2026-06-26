@@ -60,10 +60,24 @@
             <version>${agentscope.version}</version>
         </dependency>
 
+        <!-- AgentScope RAG Simple 扩展（含 OllamaTextEmbedding、InMemoryStore、PgVectorStore、TextReader 等） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-rag-simple</artifactId>
+            <version>${agentscope.version}</version>
+        </dependency>
+
         <!-- MySQL 驱动 -->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL 驱动（PgVectorStore 向量存储使用） -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- MyBatis-Plus（用于会话管理等业务表） -->

@@ -25,6 +25,11 @@ public enum ErrorCode {
     SQL_EXECUTE_FORBIDDEN(40030, "SQL执行被禁止：仅支持SELECT查询"),
     SQL_EXECUTE_TIMEOUT(40031, "SQL执行超时"),
 
+    // RAG 相关错误码 (4004x)
+    RAG_DOCUMENT_NOT_FOUND(40041, "文档不存在或无权访问"),
+    RAG_DOCUMENT_UPLOAD_FAILED(40042, "文档上传失败"),
+    RAG_EMBEDDING_FAILED(40043, "向量化处理失败"),
+
     // 系统错误码 (500xx)
     SYSTEM_ERROR(50000, "系统异常"),
     AGENT_RUN_FAILED(50010, "Agent执行失败");
